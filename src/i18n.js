@@ -40,7 +40,7 @@ export function t(key, vars) {
 
 // 12/24-hour clock (#181): follows the user's Home Assistant profile (hass.locale.time_format) instead of the panel
 // language's locale, which made English always en-GB / 24-hour. "language" uses HA's own language, "system" the browser.
-// Spread last into time options: `toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc(), ...hc() })`.
+// Spread last into time options: `toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() })`.
 let hcOpts = {}, hcKey;
 export const setTimeFormat = (fmt, hassLang) => {
   if (hcKey === `${fmt}|${hassLang}`) return; hcKey = `${fmt}|${hassLang}`;
