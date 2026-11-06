@@ -180,17 +180,19 @@ export const styles = css`
      the screen where the photo is: --bgat) under their tint instead of a live backdrop-filter; cards with their own full
      background keep theirs */
   :host(.calm) .bg:not(.out){animation:fadeIn .4s ease-out both}
-  :host(.perf) .strip .card{--tint:var(--card)}
-  :host(.perf) .strip .card:not(.appart):not(.art){backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(var(--tint),var(--tint)),var(--bgblur) var(--bgat,0 0)/var(--bgsize) no-repeat fixed}
-  :host(.perf) .strip .card:hover{--tint:rgba(255,255,255,.14)}
+  :host(.perf) .strip .card{--hcn-tint:var(--card)}
+  :host(.perf) .strip .card:not(.appart):not(.art){backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(var(--hcn-tint),var(--hcn-tint)),var(--bgblur) var(--bgat,0 0)/var(--bgsize) no-repeat fixed}
+  :host(.perf) .strip .card.on{--hcn-tint:var(--card-on)}
+  :host(.perf) .strip .card.unavailable,:host(.perf) .strip .card.add{--hcn-tint:rgba(255,255,255,.04)}
   /* no transform on these cards: Firefox drops a fixed background to "scroll" on a transformed element, so the bitmap
-     would jump. Entrance by opacity only, hover lift by top, no press shrink */
-  :host(.perf) .strip .card{animation-name:fadeIn}
-  :host(.perf) .strip .card:hover{transform:none;top:-3px}
+     would jump. Entrance by opacity only, hover lift by top, no press shrink; same timing as the original */
+  :host(.perf) .strip .card{animation-name:fadeIn;transition:--hcn-tint .25s,top .25s var(--ease),border-color .25s,padding .3s}
   :host(.perf) .strip .card:active{transform:none}
-  :host(.perf) .strip .card.on{--tint:var(--card-on)}
-  :host(.perf) .strip .card.on:hover{--tint:rgba(255,255,255,.4)}
-  :host(.perf) .strip .card.unavailable,:host(.perf) .strip .card.add{--tint:rgba(255,255,255,.04)}
+  @media (hover:hover){
+    :host(.perf) .strip .card:hover{transform:none;top:-3px;--hcn-tint:rgba(255,255,255,.14)}
+    :host(.perf) .strip .card.on:hover{--hcn-tint:rgba(255,255,255,.4)}
+    :host(.perf) .strip .card.unavailable:hover,:host(.perf) .strip .card.add:hover{--hcn-tint:rgba(255,255,255,.04)}
+  }
   :host(.calm) .overlay{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,20,20,.72)}
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */

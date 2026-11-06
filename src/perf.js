@@ -6,6 +6,10 @@
 // (no JavaScript in the scroll path, so it never lags behind the cards). The photo's slow zoom (kb) is off in this mode, so the bitmap keeps matching it and the glass
 // that stays live (pills, bars, popups) sits over a still picture the browser can cache.
 
+// the cards' tint sits in a background-image layer here; registered as a colour it can still fade like the original
+// background-color does (registerProperty is document-wide, so it also reaches the panel's shadow root)
+try { CSS.registerProperty({ name: "--hcn-tint", syntax: "<color>", inherits: false, initialValue: "transparent" }); } catch {}
+
 const S = .5;      // bitmap scale: half resolution is plenty for a 16px blur
 const BLUR = 16;   // .card: backdrop-filter: blur(16px) saturate(1.2)
 
