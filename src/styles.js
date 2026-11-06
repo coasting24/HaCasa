@@ -176,12 +176,18 @@ export const styles = css`
   /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (the gradient --g is built per card by _fadeStrip) instead of a dark overlay */
   .strip>[data-fm],.strip>*>[data-fm]{-webkit-mask-image:var(--g);mask-image:var(--g);--o:64px;-webkit-mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));-webkit-mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-clip:no-clip;mask-clip:no-clip}
   .strip::after{content:"";flex:none;width:var(--pad)}
-  /* performance mode (perf.js): the photo stands still, the row's cards show a blurred bitmap of it (--bgblur, placed per
-     card at --bgp) under their tint instead of a live backdrop-filter; cards with their own full background keep theirs */
+  /* performance mode (perf.js): the photo stands still, the row's cards show a blurred bitmap of it (--bgblur, fixed to
+     the screen where the photo is: --bgat) under their tint instead of a live backdrop-filter; cards with their own full
+     background keep theirs */
   :host(.calm) .bg:not(.out){animation:fadeIn .4s ease-out both}
   :host(.perf) .strip .card{--tint:var(--card)}
-  :host(.perf) .strip .card:not(.appart):not(.art){backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(var(--tint),var(--tint)),var(--bgblur) var(--bgp,0 0)/var(--bgsize) no-repeat}
+  :host(.perf) .strip .card:not(.appart):not(.art){backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(var(--tint),var(--tint)),var(--bgblur) var(--bgat,0 0)/var(--bgsize) no-repeat fixed}
   :host(.perf) .strip .card:hover{--tint:rgba(255,255,255,.14)}
+  /* no transform on these cards: Firefox drops a fixed background to "scroll" on a transformed element, so the bitmap
+     would jump. Entrance by opacity only, hover lift by top, no press shrink */
+  :host(.perf) .strip .card{animation-name:fadeIn}
+  :host(.perf) .strip .card:hover{transform:none;top:-3px}
+  :host(.perf) .strip .card:active{transform:none}
   :host(.perf) .strip .card.on{--tint:var(--card-on)}
   :host(.perf) .strip .card.on:hover{--tint:rgba(255,255,255,.4)}
   :host(.perf) .strip .card.unavailable,:host(.perf) .strip .card.add{--tint:rgba(255,255,255,.04)}

@@ -1,8 +1,9 @@
 // Performance mode (config.perfMode): no live blur behind the cards of the row.
 // A card's frosted glass is a backdrop-filter, re-blurred every frame while the row scrolls or the photo drifts —
 // the heaviest work on a slow wall tablet. Here the room photo, with the same dark wash as .bg::after, is blurred
-// once into a bitmap (canvas, half resolution) and painted behind each card at the spot it covers, so scrolling only
-// moves a picture. The photo's slow zoom (kb) is off in this mode, so the bitmap keeps matching it and the glass
+// once into a bitmap (canvas, half resolution) and painted behind each card with background-attachment: fixed, so
+// it is anchored to the screen, exactly where the photo is: the browser places it in the same frame as the scroll
+// (no JavaScript in the scroll path, so it never lags behind the cards). The photo's slow zoom (kb) is off in this mode, so the bitmap keeps matching it and the glass
 // that stays live (pills, bars, popups) sits over a still picture the browser can cache.
 
 const S = .5;      // bitmap scale: half resolution is plenty for a 16px blur
@@ -48,21 +49,4 @@ export async function blurredBg(bg) {
   ox.drawImage(src, -p, -p);
   const blob = await new Promise(ok => out.toBlob(ok, "image/jpeg", .85));
   return blob ? `url("${URL.createObjectURL(blob)}")` : null;
-}
-
-/** where the bitmap sits behind each card of a strip: offsets from layout (never transforms), minus the scroll */
-export function placeCards(st, bg) {
-  const abs = el => { let x = 0, y = 0; for (let e = el; e; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; } return [x, y]; };
-  if (!st.__pos || st.__pos.n !== st.children.length) {
-    const [bx, by] = abs(bg);
-    st.__pos = { n: st.children.length, items: [...st.children].map(w => {
-      const c = w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, [x, y] = abs(c);
-      return { c, x: x - bx, y: y - by, k: "" };
-    }) };
-  }
-  const sl = st.scrollLeft, stp = st.scrollTop;
-  for (const it of st.__pos.items) {
-    const k = `${-(it.x - sl)}px ${-(it.y - stp)}px`;
-    if (k !== it.k) { it.k = k; it.c.style.setProperty("--bgp", k); }
-  }
 }
