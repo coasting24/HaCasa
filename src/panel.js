@@ -1,6 +1,6 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
-import { t, locale, setLang, pickLang, inText } from "./i18n.js";
+import { t, locale, setLang, setTimeFormat, pickLang, inText, hc } from "./i18n.js";
 import { LitElement, html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -33,7 +33,7 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 /** "Thuis." -> Thuis + an accent dot; any other title stays as it is */
 const brandTitle = s => html`<span class="bt">${s}</span>`;
 
-const eventWhenShort = ev => ev.allDay ? t("hele dag") : ev.start.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const eventWhenShort = ev => ev.allDay ? t("hele dag") : ev.start.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() });
 const BUILD = Math.floor(Date.now() / 3600000).toString(36);   // changes every hour: replaced photos show up after a reload
 const FONT = "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap";
 const DEFAULT_CONFIG = { rooms: "auto", roomImage: "/local/images/rooms/{slug}.jpg", homeImage: "/local/images/rooms/home.jpg", home: {}, more: [] };   // no room cap by default (#146); Settings → Kamers can set one
@@ -43,7 +43,7 @@ class HacasaNova extends LitElement {
   static properties = {
     hass: { attribute: false }, narrow: { type: Boolean }, route: { attribute: false }, panel: { attribute: false },
     config: { state: true }, popup: { state: true }, drawer: { state: true }, edit: { state: true }, editKey: { state: true }, editOrder: { state: true }, editDrag: { state: true }, iconPick: { state: true }, tick: { state: true }, now: { state: true },
-    draft: { state: true }, saved: { state: true }, ghLatest: { state: true }, stab: { state: true }, attFilter: { state: true }, search: { state: true }, sysInfo: { state: true }, netHist: { state: true }, battEta: { state: true }, notifications: { state: true }, idle: { state: true }, toast: { state: true }, events: { state: true }, templates: { state: true }, navFloor: { state: true }, searchOpen: { state: true }, wx: { state: true }, stripScrolled: { state: true }, lightHist: { state: true }, climateHist: { state: true }, plugHist: { state: true }, plugTimers: { state: true }, sensFilter: { state: true }, sensGroup: { state: true }, pageFilter: { state: true }, pageGroup: { state: true }, energyHist: { state: true }, graphHist: { state: true }, todo: { state: true },
+    draft: { state: true }, saved: { state: true }, ghLatest: { state: true }, stab: { state: true }, attFilter: { state: true }, search: { state: true }, sysInfo: { state: true }, netHist: { state: true }, battEta: { state: true }, notifications: { state: true }, idle: { state: true }, toast: { state: true }, events: { state: true }, templates: { state: true }, navFloor: { state: true }, searchOpen: { state: true }, wx: { state: true }, lightHist: { state: true }, climateHist: { state: true }, plugHist: { state: true }, plugTimers: { state: true }, sensFilter: { state: true }, sensGroup: { state: true }, pageFilter: { state: true }, pageGroup: { state: true }, energyHist: { state: true }, graphHist: { state: true }, todo: { state: true },
   };
 
   constructor() {
@@ -170,6 +170,7 @@ class HacasaNova extends LitElement {
   willUpdate(changed) {
     if (!this.hass) return;
     setLang(this.config.language || pickLang(this.hass.language || this.hass.locale?.language));
+    setTimeFormat(this.hass.locale?.time_format, this.config.language ? locale() : this.hass.locale?.language || this.hass.language);   // a fixed panel language also sets the clock style
     const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); setMotion(!still);
     if (changed.has("popup")) { const was = changed.get("popup"); if (was && !this.popup) ghost(this, ".overlay", "pop-out", 200); else if (was?.menu && this.popup && !this.popup.menu && this.popup.type === was.type) ghost(this, ".pmenu", "menu-out", 170, (c, el) => { const r = el.getBoundingClientRect(); c.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;right:auto;bottom:auto;width:${r.width}px`; }); }
     if (!this._userLoaded) { this._userLoaded = true; this.loadUser(); this._unsubNotif = subscribeNotifications(this.hass, list => { this.notifications = list; }); this.subscribeTemplates(); }
@@ -192,13 +193,14 @@ class HacasaNova extends LitElement {
     if (bg !== this._bg) { if (this._bg && this._bgCache?.get(this._bg) !== false) { this._prevBg = this._bg; clearTimeout(this._bgT); this._bgT = setTimeout(() => { this._prevBg = null; this.requestUpdate(); }, 500); } this._bg = bg; }
     if (this.popup?.type === "weather" && !this.popup.forecast && !this.popup.loading) this.loadForecast();
     const key = this.settings ? "settings" : this.page || (this.room ? this.room.id : "home");
-    if (this._viewKey && key !== this._viewKey) ghost(this, ".title,.strip,.sfade,.page,.empty", "view-out", 240);
+    if (this._viewKey && key !== this._viewKey) ghost(this, ".title,.strip,.page,.empty", "view-out", 240);
     this._viewSwitch = key !== this._viewKey; this._viewKey = key;
   }
 
   updated() {
     if (this._viewSwitch) { this._viewSwitch = false; requestAnimationFrame(() => { this.style.transform = "translateZ(0)"; requestAnimationFrame(() => { this.style.transform = ""; }); }); }
     afterRender(this);
+    for (const st of this.renderRoot.querySelectorAll(".strip")) this._fadeStrip(st);
   }
 
   /* ---------- actions ---------- */
@@ -395,8 +397,23 @@ class HacasaNova extends LitElement {
   }
 
   /* ---------- strip: wheel + mouse drag ---------- */
-  _stripScroll(e) { const on = e.currentTarget.scrollLeft > 4; if (on !== !!this.stripScrolled) this.stripScrolled = on; }
-  stripFades() { return html`<div class=${classMap({ sfade: true, l: true, on: !!this.stripScrolled })}></div><div class="sfade r"></div>`; }
+  _stripScroll(e) { const st = e.currentTarget; if (this._fadeRaf) return; this._fadeRaf = requestAnimationFrame(() => { this._fadeRaf = 0; this._fadeStrip(st); }); }
+  /** soft edges on the card row: each card that crosses an edge is masked to transparent there (not a dark overlay).
+   *  The mask sits on the card itself, not on the strip: a mask on the strip would make it a backdrop root and the
+   *  cards' frosted glass would blur nothing. The fade widens with the scroll distance, so it never pops in. */
+  _fadeStrip(st) {
+    const cards = [...st.children].map(c => c.classList.contains("card") ? c : c.querySelector(":scope > .card") || c);
+    if (innerWidth <= 900) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // phone: grid, no row edges
+    const F = 72, W = st.clientWidth, x = st.scrollLeft;
+    const fl = Math.min(F, Math.max(0, x)), fr = Math.min(F, Math.max(0, st.scrollWidth - W - x));
+    [...st.children].forEach((w, i) => {
+      const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth;
+      if (!((fl > .5 && a < fl) || (fr > .5 && b > W - fr))) { c.removeAttribute("data-fm"); return; }
+      c.setAttribute("data-fm", "");
+      c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--m1", `${fl - a}px`);
+      c.style.setProperty("--m2", `${W - fr - a}px`); c.style.setProperty("--m3", `${W - a}px`);
+    });
+  }
   /** energy page: today's use and return per hour, power peak and a 3 h sparkline */
   async loadEnergyToday() {
     const en = this.home.energy; this.energyHist = { ...(this.energyHist || {}), at: Date.now() };
@@ -404,7 +421,7 @@ class HacasaNova extends LitElement {
     const [use, sun, pw, sol] = await Promise.all([en.today ? hourlyToday(this.hass, en.today.entity_id) : null, en.returned ? hourlyToday(this.hass, en.returned.entity_id) : null, en.power ? fetchNumeric(this.hass, [en.power.entity_id], 24) : null, solarId ? hourlyToday(this.hass, solarId) : null]);
     const rows = pw?.[en.power?.entity_id] || [], peak = rows.length ? rows.reduce((a, b) => b.v > a.v ? b : a) : null;
     if (en.power) this.netHist = { ...(this.netHist || {}), [en.power.entity_id]: rows.filter(r => r.t > Date.now() - 3 * 3600000) };
-    this.energyHist = { at: Date.now(), use: use || [], sun: sun || [], sol: sol || [], peak: peak ? { v: peak.v, t: new Date(peak.t).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) } : null };
+    this.energyHist = { at: Date.now(), use: use || [], sun: sun || [], sol: sol || [], peak: peak ? { v: peak.v, t: new Date(peak.t).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) } : null };
   }
   /** plug with a meter: 3 h of power for the sparkline, today's kWh per hour from the recorder */
   async loadPlug(id, powerId, energyId) {
@@ -618,7 +635,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(h.temp, t(this.pageCfg("home").title || this.config.home?.greeting || "") || greeting(), "", this.tickerOn("home", items), html`${this.renderPills(h)}${quickRow(this)}`, "home", this.renderWx(h.weather), h.hum)}
       ${editing ? editTools(this, "home") : nothing}
-      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.stripFades()}
+      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>
       ${!cards.length ? html`<div class="empty">${t("Geen kaarten: wijs entiteiten toe aan ruimtes in Home Assistant.")}</div>` : nothing}
       ${editing ? editBar(this, "home") : nothing}
       <div class=${classMap({ banner: true, show: h.motion.length > 0 && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in {rooms}", { rooms: h.motion.map(r => inText(r.name)).join(", ") })}</div>`;
@@ -704,7 +721,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}
       ${editing ? editTools(this, r.id) : nothing}
-      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.stripFades()}
+      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>
       ${!cards.length ? html`<div class="empty">${t("Geen apparaten in deze ruimte.")}</div>` : nothing}
       ${editing ? editBar(this, r.id) : nothing}
       <div class=${classMap({ banner: true, show: r.motionOn && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in de {room}", { room: inText(r.name) })}</div>`;
