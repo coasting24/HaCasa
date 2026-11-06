@@ -419,12 +419,15 @@ class HacasaNova extends LitElement {
     const cards = [...st.children].map(c => c.classList.contains("card") ? c : c.querySelector(":scope > .card") || c);
     if (innerWidth <= 900) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // phone: grid, no row edges
     st.__fk ??= st.scrollLeft > 4 ? 1 : 0;
-    const F = 64, S = .38, W = st.clientWidth, x = st.scrollLeft, kl = st.__fk;
+    // P: the strip's left padding, room for the first card's shadow; the fade starts at the old edge (P), as the
+    // original overlay did, and runs out to nothing across the padding instead of cutting cards off hard there
+    const F = 64, S = .38, W = st.clientWidth, x = st.scrollLeft, kl = st.__fk, P = parseFloat(getComputedStyle(st).paddingLeft) || 0;
     [...st.children].forEach((w, i) => {
       const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth;
-      if (!((kl > 0 && a < F) || b > W - F)) { c.removeAttribute("data-fm"); return; }
+      if (!((kl > 0 && a < P + F) || b > W - F)) { c.removeAttribute("data-fm"); return; }
       c.setAttribute("data-fm", "");
-      c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--m1", `${F - a}px`);
+      c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--mp", `${P - a}px`); c.style.setProperty("--m1", `${P + F - a}px`);
+      c.style.setProperty("--a0", (1 - kl).toFixed(3));
       c.style.setProperty("--m2", `${W - F - a}px`); c.style.setProperty("--m3", `${W - a}px`);
       c.style.setProperty("--al", (1 - S * kl).toFixed(3)); c.style.setProperty("--ar", String(1 - S));
     });

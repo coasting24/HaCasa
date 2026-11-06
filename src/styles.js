@@ -167,11 +167,14 @@ export const styles = css`
   @media (max-width:1100px){ .wx .wbar{display:none} }
 
   /* ===== card strip ===== */
-  .strip{position:absolute;left:var(--pad);right:0;bottom:85px;display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:6px 0}
+  /* room above and below the cards for their drop shadow (0 12px 32px, plus the 3px hover lift) and 32px left of the first one: a scroll container clips both axes.
+     The extra padding is taken off "bottom" and "left", so the cards stay where they were; the strip itself lets clicks through, only the cards catch them */
+  .strip{position:absolute;left:calc(var(--pad) - 32px);right:0;bottom:calc(85px - 42px);display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:26px 0 48px 32px;scroll-padding-left:32px;pointer-events:none}
+  .strip>*{pointer-events:auto}
   @media (pointer:coarse){ .strip{scroll-snap-type:x proximity} }
   .strip::-webkit-scrollbar{display:none}
   /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (mask stops set per card by _fadeStrip) instead of a dark overlay */
-  .strip>[data-fm],.strip>*>[data-fm]{--g:linear-gradient(to right,rgba(0,0,0,var(--al)) var(--m0),#000 var(--m1),#000 var(--m2),rgba(0,0,0,var(--ar)) var(--m3));-webkit-mask-image:var(--g);mask-image:var(--g)}
+  .strip>[data-fm],.strip>*>[data-fm]{--g:linear-gradient(to right,rgba(0,0,0,var(--a0)) calc(var(--m0) + var(--o)),rgba(0,0,0,var(--al)) calc(var(--mp) + var(--o)),#000 calc(var(--m1) + var(--o)),#000 calc(var(--m2) + var(--o)),rgba(0,0,0,var(--ar)) calc(var(--m3) + var(--o)));-webkit-mask-image:var(--g);mask-image:var(--g);--o:64px;-webkit-mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));-webkit-mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-clip:no-clip;mask-clip:no-clip}
   .strip::after{content:"";flex:none;width:var(--pad)}
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */
@@ -744,7 +747,7 @@ export const styles = css`
     .wx .t sup{font-size:16px;line-height:1.4}
     .wx .cnd{margin:0}
     .wx .hl{margin-top:2px}
-    .strip{position:static;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:6px;padding:4px var(--pad) calc(90px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));scroll-snap-type:none;scrollbar-width:none}
+    .strip{position:static;pointer-events:auto;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:6px;padding:4px var(--pad) calc(90px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));scroll-snap-type:none;scrollbar-width:none}
     .strip::after{display:none}
     .etools{position:static;padding:8px var(--pad) 6px;flex:none}
     .etools button{height:34px;padding:0 14px 0 10px;font-size:10px}
