@@ -8681,8 +8681,8 @@ zodiac-virgo|horoscope`;var vs=null,td=()=>vs||(vs=bs.split(`
   .strip{position:absolute;left:var(--pad);right:0;bottom:85px;display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:6px 0}
   @media (pointer:coarse){ .strip{scroll-snap-type:x proximity} }
   .strip::-webkit-scrollbar{display:none}
-  /* soft edges: cards crossing the row edge fade to transparent (mask stops set per card by _fadeStrip in panel.js) */
-  .strip>[data-fm],.strip>*>[data-fm]{--g:linear-gradient(to right,transparent var(--m0),rgba(0,0,0,.4) calc(var(--m0) + (var(--m1) - var(--m0)) * .4),#000 var(--m1),#000 var(--m2),rgba(0,0,0,.4) calc(var(--m3) - (var(--m3) - var(--m2)) * .4),transparent var(--m3));-webkit-mask-image:var(--g);mask-image:var(--g)}
+  /* soft edges: cards crossing the row edge fade back to about a third (still visible, never gone) (mask stops set per card by _fadeStrip in panel.js) */
+  .strip>[data-fm],.strip>*>[data-fm]{--fe:.35;--g:linear-gradient(to right,rgba(0,0,0,var(--fe)) var(--m0),rgba(0,0,0,calc(var(--fe) + (1 - var(--fe)) * .55)) calc(var(--m0) + (var(--m1) - var(--m0)) * .4),#000 var(--m1),#000 var(--m2),rgba(0,0,0,calc(var(--fe) + (1 - var(--fe)) * .55)) calc(var(--m3) - (var(--m3) - var(--m2)) * .4),rgba(0,0,0,var(--fe)) var(--m3));-webkit-mask-image:var(--g);mask-image:var(--g)}
   .strip::after{content:"";flex:none;width:var(--pad)}
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */
