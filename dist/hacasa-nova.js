@@ -8678,9 +8678,9 @@ zodiac-virgo|horoscope`;var vs=null,td=()=>vs||(vs=bs.split(`
   @media (max-width:1100px){ .wx .wbar{display:none} }
 
   /* ===== card strip ===== */
-  /* room above and below the cards for their drop shadow (0 12px 32px, plus the 3px hover lift); to the left it runs to the screen edge, so cards leaving it fade out all the way instead of being cut at the title line. A scroll container clips both axes.
+  /* room above and below the cards for their drop shadow (0 12px 32px, plus the 3px hover lift) and 32px left of the first one: a scroll container clips both axes.
      The extra padding is taken off "bottom" and "left", so the cards stay where they were; the strip itself lets clicks through, only the cards catch them */
-  .strip{position:absolute;left:0;right:0;bottom:calc(85px - 42px);display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:26px 0 48px var(--pad);scroll-padding-left:var(--pad);pointer-events:none}
+  .strip{position:absolute;left:calc(var(--pad) - 32px);right:0;bottom:calc(85px - 42px);display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:26px 0 48px 32px;scroll-padding-left:32px;pointer-events:none}
   .strip>*{pointer-events:auto}
   @media (pointer:coarse){ .strip{scroll-snap-type:x proximity} }
   .strip::-webkit-scrollbar{display:none}

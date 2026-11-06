@@ -419,8 +419,8 @@ class HacasaNova extends LitElement {
     const cards = [...st.children].map(c => c.classList.contains("card") ? c : c.querySelector(":scope > .card") || c);
     if (innerWidth <= 900) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // phone: grid, no row edges
     st.__fk ??= st.scrollLeft > 4 ? 1 : 0;
-    // P: the strip's left padding (it runs to the screen edge); the fade starts at the title line (P), as the
-    // original overlay did, and keeps going at about the same slope until the card is gone at the screen edge
+    // P: the strip's left padding, room for the first card's shadow; the fade starts at the old edge (P), as the
+    // original overlay did, and runs out to nothing across the padding instead of cutting cards off hard there
     const F = 64, S = .38, W = st.clientWidth, x = st.scrollLeft, kl = st.__fk, P = parseFloat(getComputedStyle(st).paddingLeft) || 0;
     [...st.children].forEach((w, i) => {
       const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth;
