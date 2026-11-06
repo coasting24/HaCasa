@@ -57,3 +57,28 @@ export async function blurredBg(bg) {
   const blob = await new Promise(ok => out.toBlob(ok, "image/jpeg", .85));
   return blob ? `url("${URL.createObjectURL(blob)}")` : null;
 }
+
+/** one of the row's edge strips (el) as a finished picture: the photo exactly as .bg paints it (cover, centred, with the
+ *  .bg::after wash) with the strip's fade baked into its alpha (stops: [x in px, alpha] from the strip's left edge).
+ *  The strips never move and carry no mask, so they are painted once and only composited while the row scrolls */
+export async function edgeBg(bg, el, stops) {
+  const r = bg.getBoundingClientRect(), e = el.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(e.width * d)), H = Math.max(1, Math.round(e.height * d));
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d"); ctx.scale(d, d); ctx.translate(r.left - e.left, r.top - e.top);   // bg coordinates
+  const m = getComputedStyle(bg).backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+  if (m) {
+    const img = await loadImg(m[1]), k = Math.max(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+    ctx.drawImage(img, (r.width - dw) / 2, (r.height - dh) / 2, dw, dh);
+    wash(ctx, 0, 0, r.width, r.height, r.width, r.height);
+  } else {   // plain / gradient background: paint it with the browser itself is not possible here; keep the element's CSS
+    return null;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "destination-in";
+  const g = ctx.createLinearGradient(0, 0, W, 0);
+  for (const [x, a] of stops) g.addColorStop(Math.max(0, Math.min(1, x * d / W)), `rgba(0,0,0,${a})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const blob = await new Promise(ok => cv.toBlob(ok, "image/png"));
+  return blob ? URL.createObjectURL(blob) : null;
+}

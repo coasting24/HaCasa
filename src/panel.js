@@ -1,6 +1,6 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
-import { blurredBg } from "./perf.js";
+import { blurredBg, edgeBg } from "./perf.js";
 import { t, locale, setLang, setTimeFormat, pickLang, inText, hc } from "./i18n.js";
 import { LitElement, html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
@@ -409,21 +409,42 @@ class HacasaNova extends LitElement {
     const r = bg.getBoundingClientRect(), at = `${Math.round(r.left)}px ${Math.round(r.top)}px`, size = `${Math.round(r.width)}px ${Math.round(r.height)}px`;
     if (this._perfAt !== at + size) { this._perfAt = at + size; this.style.setProperty("--bgat", at); this.style.setProperty("--bgsize", size); }
     const key = `${bg.className}|${bg.getAttribute("style")}|${size}`;
-    if (key === this._perfKey) return;
+    if (key === this._perfKey) { if (this.classList.contains("perf")) this._edges(bg); return; }
     this._perfKey = key;
     blurredBg(bg).then(css => {
       if (this._perfKey !== key) return;   // a newer photo or size is already on its way
       if (!css) { this.classList.remove("perf"); return; }
       const old = this._perfUrl; this._perfUrl = css.match(/^url\("(blob:[^"]+)"\)/)?.[1] || null;
       this.style.setProperty("--bgblur", css); this.classList.add("perf");
+      for (const st of this.renderRoot.querySelectorAll(".strip")) this._fadeStrip(st);   // per-card masks off, edge strips on
+      this._edges(bg);
       if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);   // after the new one has painted
     }).catch(e => { console.warn("[hacasa-nova] performance mode: no blurred background", e); if (this._perfKey === key) this.classList.remove("perf"); });
   }
 
+  /** the edge strips' pictures (perf.js edgeBg), set on each strip element; redrawn only when photo or place changed.
+   *  Left: full background at the row's edge, .38 at the title line (as the original shade), none 64px further in;
+   *  right: .38 at the screen edge, none 64px in. A gradient background (no photo) keeps the strips empty. */
+  _edges(bg) {
+    for (const el of this.renderRoot.querySelectorAll(".pfade")) {
+      const k = `${this._perfKey}|${JSON.stringify(el.getBoundingClientRect())}`;
+      if (el.__k === k) continue; el.__k = k;
+      const w = el.getBoundingClientRect().width, stops = el.classList.contains("l") ? [[0, 1], [32, .38], [w, 0]] : [[0, 0], [w, .38]];
+      edgeBg(bg, el, stops).then(url => {
+        if (el.__k !== k) { if (url) URL.revokeObjectURL(url); return; }
+        if (el.__url) URL.revokeObjectURL(el.__url); el.__url = url;
+        el.style.backgroundImage = url ? `url("${url}")` : "none";
+      }).catch(() => {});
+    }
+  }
   /** edge fades of the card row, same behaviour as the original overlays: right edge always, left edge once the row
    *  is scrolled (eased in/out over .25 s), 64 px wide, as strong as the old .38 shade. Only the rendering changed:
    *  the cards turn see-through there instead of a dark gradient lying on top of them. */
-  _stripScroll(e) { this._fadeTick(e.currentTarget); }
+  _stripScroll(e) {
+    const st = e.currentTarget;
+    if (this.classList.contains("perf")) { st.classList.toggle("scrolled", st.scrollLeft > 4); return; }   // fixed edge strips (styles.js)
+    this._fadeTick(st);
+  }
   _fadeTick(st) {
     if (st.__raf) return;
     let last = performance.now();
@@ -439,7 +460,13 @@ class HacasaNova extends LitElement {
   /** The mask sits on each card, not on the strip: a mask on the strip would make it a backdrop root and the cards'
    *  frosted glass would blur nothing. */
   _fadeStrip(st) {
-    if (innerWidth <= 900) { for (const c of st.querySelectorAll("[data-fm]")) c.removeAttribute("data-fm"); return; }   // phone: grid, no row edges
+    // phone: grid, no row edges; performance mode: fixed edge strips showing the background instead (per-card masks change
+    // every scroll frame and make each edge card repaint with its picture: measured, that was most of the mode's scroll
+    // cost; a mask on the scrolling row costs as much)
+    if (innerWidth <= 900 || this.classList.contains("perf")) {
+      for (const c of st.querySelectorAll("[data-fm]")) { c.removeAttribute("data-fm"); c.__g = ""; }
+      st.classList.toggle("scrolled", st.scrollLeft > 4); return;
+    }
     st.__fk ??= st.scrollLeft > 4 ? 1 : 0;
     // geometry is measured once per render / resize (updated() clears st.__geo), never while scrolling: the loop below
     // then only writes, so a scroll frame costs no style or layout pass
@@ -637,7 +664,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(h.temp, t(this.pageCfg("home").title || this.config.home?.greeting || "") || greeting(), "", this.tickerOn("home", items), html`${this.renderPills(h)}${quickRow(this)}`, "home", this.renderWx(h.weather), h.hum)}
       ${editing ? editTools(this, "home") : nothing}
-      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>
+      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen kaarten: wijs entiteiten toe aan ruimtes in Home Assistant.")}</div>` : nothing}
       ${editing ? editBar(this, "home") : nothing}
       <div class=${classMap({ banner: true, show: h.motion.length > 0 && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in {rooms}", { rooms: h.motion.map(r => inText(r.name)).join(", ") })}</div>`;
@@ -723,7 +750,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}
       ${editing ? editTools(this, r.id) : nothing}
-      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>
+      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen apparaten in deze ruimte.")}</div>` : nothing}
       ${editing ? editBar(this, r.id) : nothing}
       <div class=${classMap({ banner: true, show: r.motionOn && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in de {room}", { room: inText(r.name) })}</div>`;

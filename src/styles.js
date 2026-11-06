@@ -193,6 +193,16 @@ export const styles = css`
     :host(.perf) .strip .card.on:hover{--hcn-tint:rgba(255,255,255,.4)}
     :host(.perf) .strip .card.unavailable:hover,:host(.perf) .strip .card.add:hover{--hcn-tint:rgba(255,255,255,.04)}
   }
+  /* edge fades in this mode: two still strips over the row's edges showing the real background (photo + wash with the fade baked into a picture by _edges),
+     fading inwards: the cards fade into the background exactly where the original's dark overlays sat (right always, left
+     once scrolled, eased .25s). They never move, so they are painted once, not per scroll frame */
+  .pfade{display:none}
+  @media (min-width:901px){
+    :host(.perf) .pfade{display:block;position:absolute;z-index:2;pointer-events:none;bottom:calc(85px - 42px);height:calc(var(--card-h) + 74px);background:no-repeat 0 0/100% 100%}
+    :host(.perf) .pfade.l{left:calc(var(--pad) - 32px);width:96px;opacity:0;transition:opacity .25s}
+    :host(.perf) .strip.scrolled~.pfade.l{opacity:1}
+    :host(.perf) .pfade.r{right:0;width:64px}
+  }
   :host(.calm) .overlay{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,20,20,.72)}
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */
