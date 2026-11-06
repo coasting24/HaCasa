@@ -428,6 +428,10 @@ class HacasaNova extends LitElement {
       c.setAttribute("data-fm", "");
       c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--mp", `${P - a}px`); c.style.setProperty("--m1", `${P + F - a}px`);
       c.style.setProperty("--a0", (1 - kl).toFixed(3));
+      // a card leaving past the title line fades as a whole, in step with how much of it has left: it is gone exactly
+      // when its right edge reaches the line, instead of being cut off after the first third
+      const f = a >= P ? 1 : Math.max(0, Math.min(1, (b - P) / (b - a)));
+      c.style.setProperty("--f", (1 - kl * (1 - f)).toFixed(3));
       c.style.setProperty("--m2", `${W - F - a}px`); c.style.setProperty("--m3", `${W - a}px`);
       c.style.setProperty("--al", (1 - S * kl).toFixed(3)); c.style.setProperty("--ar", String(1 - S));
     });
