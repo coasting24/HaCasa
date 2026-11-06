@@ -200,7 +200,7 @@ class HacasaNova extends LitElement {
   updated() {
     if (this._viewSwitch) { this._viewSwitch = false; requestAnimationFrame(() => { this.style.transform = "translateZ(0)"; requestAnimationFrame(() => { this.style.transform = ""; }); }); }
     afterRender(this);
-    for (const st of this.renderRoot.querySelectorAll(".strip")) this._fadeStrip(st);
+    for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; this._fadeStrip(st); }   // cards may have changed: measure again
   }
 
   /* ---------- actions ---------- */
@@ -416,18 +416,24 @@ class HacasaNova extends LitElement {
   /** The mask sits on each card, not on the strip: a mask on the strip would make it a backdrop root and the cards'
    *  frosted glass would blur nothing. */
   _fadeStrip(st) {
-    const cards = [...st.children].map(c => c.classList.contains("card") ? c : c.querySelector(":scope > .card") || c);
-    if (innerWidth <= 900) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // phone: grid, no row edges
+    if (innerWidth <= 900) { for (const c of st.querySelectorAll("[data-fm]")) c.removeAttribute("data-fm"); return; }   // phone: grid, no row edges
     st.__fk ??= st.scrollLeft > 4 ? 1 : 0;
+    // geometry is measured once per render / resize (updated() clears st.__geo), never while scrolling: the loop below
+    // then only writes, so a scroll frame costs no style or layout pass
+    if (!st.__geo || st.__geo.n !== st.children.length) st.__geo = {
+      n: st.children.length, W: st.clientWidth, P: parseFloat(getComputedStyle(st).paddingLeft) || 0,
+      items: [...st.children].map(w => ({ c: w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, l: w.offsetLeft, cw: w.offsetWidth })),
+    };
+    if (!st.__geo.fresh) { st.__geo.fresh = true; for (const { c } of st.__geo.items) if (c.__g || c.hasAttribute("data-fm")) c.__g = "?"; }   // after a render: write every mask once more
     // P: the strip's left padding, room for the first card's shadow; the fade starts at the old edge (P), as the
     // original overlay did, and runs out to nothing across the padding instead of cutting cards off hard there
-    const F = 64, S = .38, W = st.clientWidth, x = st.scrollLeft, kl = st.__fk, P = parseFloat(getComputedStyle(st).paddingLeft) || 0;
+    const { W, P, items } = st.__geo, F = 64, S = .38, x = st.scrollLeft, kl = st.__fk;
     const O = 64;   // the mask reaches O px past each side of the card, so its shadow is not masked away (styles.js: --o)
     const lerp = (p, q, t) => p + (q - p) * Math.max(0, Math.min(1, t));
-    [...st.children].forEach((w, i) => {
-      const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth, cw = w.offsetWidth;
+    for (const { c, l, cw } of items) {
+      const a = l - x, b = a + cw;
       const left = kl > 0 && a < P + F, right = b > W - F;
-      if (!left && !right) { c.removeAttribute("data-fm"); return; }
+      if (!left && !right) { if (c.__g) { c.removeAttribute("data-fm"); c.__g = ""; } continue; }
       // edge positions in the card's own coordinates: strip edge, title line, end of the left fade; start/end of the right fade
       const m0 = -a, mp = P - a, m1 = P + F - a, m2 = W - F - a, m3 = W - a;
       const a0 = 1 - kl, al = 1 - S * kl, ar = 1 - S;
@@ -440,10 +446,13 @@ class HacasaNova extends LitElement {
       // only stops inside the mask image: Firefox renders a gradient whose stops lie far outside it as one flat colour
       const lo = -O, hi = cw + O, xs = [lo, hi, ...(left ? [m0, mp, m1] : []), ...(right ? [m2, m3] : [])]
         .filter(v => v >= lo && v <= hi).sort((p, q) => p - q);
-      c.setAttribute("data-fm", "");
-      c.style.setProperty("--g", `linear-gradient(to right,${[...new Set(xs)].map(v => `rgba(0,0,0,${alpha(v).toFixed(3)}) ${(v + O).toFixed(1)}px`).join(",")})`);
-    });
+      const g = `linear-gradient(to right,${[...new Set(xs)].map(v => `rgba(0,0,0,${alpha(v).toFixed(3)}) ${(v + O).toFixed(1)}px`).join(",")})`;
+      if (g === c.__g) continue;   // unchanged (e.g. the right edge while the row stands still): no write, no repaint
+      if (!c.__g) c.setAttribute("data-fm", "");
+      c.__g = g; c.style.setProperty("--g", g);
+    }
   }
+
   /** wheel scrolls the row sideways with an eased glide instead of jumping per notch */
   _stripWheel(e) {
     if (innerWidth <= 900 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
