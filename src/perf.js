@@ -30,6 +30,9 @@ function wash(ctx, ox, oy, w, h, cw, ch) {
 
 /** blurred picture of a .bg element as a CSS image value; null when the browser cannot do it (keep live blur) */
 export async function blurredBg(bg) {
+  // iOS / iPadOS (Safari and the Home Assistant app) ignore fixed backgrounds: the bitmap would sit in the wrong place,
+  // so the live blur stays there (the photo still stands still)
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return null;
   const cs = getComputedStyle(bg), w = bg.offsetWidth, h = bg.offsetHeight;
   const m = cs.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
   if (!m) return cs.backgroundImage;   // a smooth gradient (no photo): blurring it changes nothing
