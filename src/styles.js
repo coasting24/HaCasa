@@ -173,8 +173,8 @@ export const styles = css`
   .strip>*{pointer-events:auto}
   @media (pointer:coarse){ .strip{scroll-snap-type:x proximity} }
   .strip::-webkit-scrollbar{display:none}
-  /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (mask stops set per card by _fadeStrip) instead of a dark overlay */
-  .strip>[data-fm],.strip>*>[data-fm]{--g:linear-gradient(to right,rgba(0,0,0,calc(var(--a0) * var(--f,1))) calc(var(--m0) + var(--o)),rgba(0,0,0,calc(var(--al) * var(--f,1))) calc(var(--mp) + var(--o)),rgba(0,0,0,var(--f,1)) calc(var(--m1) + var(--o)),rgba(0,0,0,var(--f,1)) calc(var(--m2) + var(--o)),rgba(0,0,0,calc(var(--ar) * var(--f,1))) calc(var(--m3) + var(--o)));-webkit-mask-image:var(--g);mask-image:var(--g);--o:64px;-webkit-mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));-webkit-mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-clip:no-clip;mask-clip:no-clip}
+  /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (the gradient --g is built per card by _fadeStrip) instead of a dark overlay */
+  .strip>[data-fm],.strip>*>[data-fm]{-webkit-mask-image:var(--g);mask-image:var(--g);--o:64px;-webkit-mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));-webkit-mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-clip:no-clip;mask-clip:no-clip}
   .strip::after{content:"";flex:none;width:var(--pad)}
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */

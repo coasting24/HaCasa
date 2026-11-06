@@ -422,18 +422,26 @@ class HacasaNova extends LitElement {
     // P: the strip's left padding, room for the first card's shadow; the fade starts at the old edge (P), as the
     // original overlay did, and runs out to nothing across the padding instead of cutting cards off hard there
     const F = 64, S = .38, W = st.clientWidth, x = st.scrollLeft, kl = st.__fk, P = parseFloat(getComputedStyle(st).paddingLeft) || 0;
+    const O = 64;   // the mask reaches O px past each side of the card, so its shadow is not masked away (styles.js: --o)
+    const lerp = (p, q, t) => p + (q - p) * Math.max(0, Math.min(1, t));
     [...st.children].forEach((w, i) => {
-      const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth;
-      if (!((kl > 0 && a < P + F) || b > W - F)) { c.removeAttribute("data-fm"); return; }
-      c.setAttribute("data-fm", "");
-      c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--mp", `${P - a}px`); c.style.setProperty("--m1", `${P + F - a}px`);
-      c.style.setProperty("--a0", (1 - kl).toFixed(3));
+      const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth, cw = w.offsetWidth;
+      const left = kl > 0 && a < P + F, right = b > W - F;
+      if (!left && !right) { c.removeAttribute("data-fm"); return; }
+      // edge positions in the card's own coordinates: strip edge, title line, end of the left fade; start/end of the right fade
+      const m0 = -a, mp = P - a, m1 = P + F - a, m2 = W - F - a, m3 = W - a;
+      const a0 = 1 - kl, al = 1 - S * kl, ar = 1 - S;
       // a card leaving past the title line fades as a whole, in step with how much of it has left: it is gone exactly
       // when its right edge reaches the line, instead of being cut off after the first third
-      const f = a >= P ? 1 : Math.max(0, Math.min(1, (b - P) / (b - a)));
-      c.style.setProperty("--f", (1 - kl * (1 - f)).toFixed(3));
-      c.style.setProperty("--m2", `${W - F - a}px`); c.style.setProperty("--m3", `${W - a}px`);
-      c.style.setProperty("--al", (1 - S * kl).toFixed(3)); c.style.setProperty("--ar", String(1 - S));
+      const f = 1 - kl * (1 - (a >= P ? 1 : Math.max(0, Math.min(1, (b - P) / (b - a)))));
+      const alpha = v => f
+        * (!left ? 1 : v <= m0 ? a0 : v <= mp ? lerp(a0, al, (v - m0) / (mp - m0)) : lerp(al, 1, (v - mp) / (m1 - mp)))
+        * (!right ? 1 : lerp(1, ar, (v - m2) / (m3 - m2)));
+      // only stops inside the mask image: Firefox renders a gradient whose stops lie far outside it as one flat colour
+      const lo = -O, hi = cw + O, xs = [lo, hi, ...(left ? [m0, mp, m1] : []), ...(right ? [m2, m3] : [])]
+        .filter(v => v >= lo && v <= hi).sort((p, q) => p - q);
+      c.setAttribute("data-fm", "");
+      c.style.setProperty("--g", `linear-gradient(to right,${[...new Set(xs)].map(v => `rgba(0,0,0,${alpha(v).toFixed(3)}) ${(v + O).toFixed(1)}px`).join(",")})`);
     });
   }
   /** wheel scrolls the row sideways with an eased glide instead of jumping per notch */
