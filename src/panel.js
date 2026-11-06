@@ -397,104 +397,38 @@ class HacasaNova extends LitElement {
   }
 
   /* ---------- strip: wheel + mouse drag ---------- */
-  /** scrolling (swipe, wheel glide, snap) fades the edges in; ~140 ms after the row stops they fade out again,
-   *  so a card that has snapped into place is always fully visible */
-  _stripScroll(e) {
-    const st = e.currentTarget; st.__moving = true;
-    clearTimeout(st.__still); st.__still = setTimeout(() => { st.__moving = false; this._fadeTick(st); }, 140);
-    this._fadeTick(st);
-  }
-  /** eases the fade strength st.__fk toward 1 while moving, back to 0 at rest; redraws the masks every frame meanwhile */
+  /** edge fades of the card row, same behaviour as the original overlays: right edge always, left edge once the row
+   *  is scrolled (eased in/out over .25 s), 64 px wide, as strong as the old .38 shade. Only the rendering changed:
+   *  the cards turn see-through there instead of a dark gradient lying on top of them. */
+  _stripScroll(e) { this._fadeTick(e.currentTarget); }
   _fadeTick(st) {
     if (st.__raf) return;
     let last = performance.now();
     const step = now => {
       st.__raf = 0; const dt = Math.max(0, now - last); last = now;
-      const k0 = st.__fk || 0, on = !!st.__moving;
-      const k = on ? Math.min(1, k0 + dt / 150) : Math.max(0, k0 - dt / 260);
+      const on = st.scrollLeft > 4, k0 = st.__fk ?? (on ? 1 : 0);
+      const k = on ? Math.min(1, k0 + dt / 250) : Math.max(0, k0 - dt / 250);
       st.__fk = k; this._fadeStrip(st);
-      if (on || k > 0) st.__raf = requestAnimationFrame(step);
+      if (k !== (on ? 1 : 0)) st.__raf = requestAnimationFrame(step);
     };
     st.__raf = requestAnimationFrame(step);
   }
-  /** soft edges on the card row while it moves: each card crossing an edge is masked there (not a dark overlay).
-   *  The mask sits on the card itself, not on the strip: a mask on the strip would make it a backdrop root and the
-   *  cards' frosted glass would blur nothing. The fade widens with the scroll distance, its strength follows st.__fk. */
+  /** The mask sits on each card, not on the strip: a mask on the strip would make it a backdrop root and the cards'
+   *  frosted glass would blur nothing. */
   _fadeStrip(st) {
     const cards = [...st.children].map(c => c.classList.contains("card") ? c : c.querySelector(":scope > .card") || c);
-    const k = st.__fk || 0;
-    if (innerWidth <= 900 || k <= 0) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // at rest, or phone grid
-    const F = 72, W = st.clientWidth, x = st.scrollLeft;
-    const fl = Math.min(F, Math.max(0, x)), fr = Math.min(F, Math.max(0, st.scrollWidth - W - x));
+    if (innerWidth <= 900) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // phone: grid, no row edges
+    st.__fk ??= st.scrollLeft > 4 ? 1 : 0;
+    const F = 64, S = .38, W = st.clientWidth, x = st.scrollLeft, kl = st.__fk;
     [...st.children].forEach((w, i) => {
       const c = cards[i], a = w.offsetLeft - x, b = a + w.offsetWidth;
-      if (!((fl > .5 && a < fl) || (fr > .5 && b > W - fr))) { c.removeAttribute("data-fm"); return; }
+      if (!((kl > 0 && a < F) || b > W - F)) { c.removeAttribute("data-fm"); return; }
       c.setAttribute("data-fm", "");
-      c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--m1", `${fl - a}px`);
-      c.style.setProperty("--m2", `${W - fr - a}px`); c.style.setProperty("--m3", `${W - a}px`);
-      c.style.setProperty("--fe", (1 - k * .65).toFixed(3));   // edge opacity: 1 at rest … .35 while swiping
+      c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--m1", `${F - a}px`);
+      c.style.setProperty("--m2", `${W - F - a}px`); c.style.setProperty("--m3", `${W - a}px`);
+      c.style.setProperty("--al", (1 - S * kl).toFixed(3)); c.style.setProperty("--ar", String(1 - S));
     });
   }
-  /** energy page: today's use and return per hour, power peak and a 3 h sparkline */
-  async loadEnergyToday() {
-    const en = this.home.energy; this.energyHist = { ...(this.energyHist || {}), at: Date.now() };
-    const solarId = this.config.home?.energy?.solarToday;
-    const [use, sun, pw, sol] = await Promise.all([en.today ? hourlyToday(this.hass, en.today.entity_id) : null, en.returned ? hourlyToday(this.hass, en.returned.entity_id) : null, en.power ? fetchNumeric(this.hass, [en.power.entity_id], 24) : null, solarId ? hourlyToday(this.hass, solarId) : null]);
-    const rows = pw?.[en.power?.entity_id] || [], peak = rows.length ? rows.reduce((a, b) => b.v > a.v ? b : a) : null;
-    if (en.power) this.netHist = { ...(this.netHist || {}), [en.power.entity_id]: rows.filter(r => r.t > Date.now() - 3 * 3600000) };
-    this.energyHist = { at: Date.now(), use: use || [], sun: sun || [], sol: sol || [], peak: peak ? { v: peak.v, t: new Date(peak.t).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) } : null };
-  }
-  /** plug with a meter: 3 h of power for the sparkline, today's kWh per hour from the recorder */
-  async loadPlug(id, powerId, energyId) {
-    if (this._plugBusy?.has(id)) return; (this._plugBusy ||= new Set()).add(id);
-    const [hist, rows] = await Promise.all([fetchNumeric(this.hass, [powerId], 3), energyId ? hourlyToday(this.hass, energyId) : null]);
-    const sp = (hist[powerId] || []), peak = sp.length ? sp.reduce((a, b) => b.v > a.v ? b : a) : null;
-    const today = rows ? rows.reduce((n, r) => n + (r.v || 0), 0) : null, maxH = rows ? Math.max(...rows.map(r => r.v || 0), 0.001) : 1;
-    this.plugHist = { ...(this.plugHist || {}), [id]: { at: Date.now(), spark: sp, peak: peak ? { v: Math.round(peak.v), t: peak.t } : null, rows, today, maxH } };
-    this._plugBusy.delete(id);
-  }
-  /** off-timer on a plug (on-timer when it is off): runs while the panel is open */
-  setPlugTimer(a, min) {
-    const cur = this.plugTimers?.[a.id]; if (cur) clearTimeout(cur.h);
-    if (cur?.min === min) { const n = { ...this.plugTimers }; delete n[a.id]; this.plugTimers = n; return; }
-    const sw = a.switch; if (!sw) return;
-    const off = isOn(sw.state); if (!off) this.call("switch", "turn_on", { entity_id: sw.id });
-    const h = setTimeout(() => { this.call("switch", "turn_off", { entity_id: sw.id }); const n = { ...this.plugTimers }; delete n[a.id]; this.plugTimers = n; }, min * 60000);
-    this.plugTimers = { ...(this.plugTimers || {}), [a.id]: { min, at: Date.now() + min * 60000, off: true, h } };
-  }
-  /** 24-hour on/off history of a light for the "today" card bottom: minutes on per clock hour, total and switch count */
-  async loadLightHist(id) {
-    const cur = this.lightHist?.[id]; if (cur && Date.now() - cur.at < 10 * 60000) return; if (this._lhBusy?.has(id)) return;
-    (this._lhBusy ||= new Set()).add(id);
-    const rows = (await fetchHistory(this.hass, id, 24)) || [];
-    rows.sort((a, b) => a.t - b.t);
-    const now = Date.now(), start = now - 24 * 3600000, bars = Array(24).fill(0), steps = Array(96).fill(0); let onMin = 0, count = 0;
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i].s !== "on") continue;
-      if (i && rows[i - 1].s !== "on") count++; else if (!i && rows[i].t > start) count++;
-      const a = Math.max(start, rows[i].t.getTime()), b = Math.min(now, rows[i + 1] ? rows[i + 1].t.getTime() : now);
-      for (let x = a; x < b; x += 60000) { bars[new Date(x).getHours()] += 1; steps[Math.min(95, Math.floor((x - start) / 900000))] += 1 / 15; onMin++; }
-    }
-    this.lightHist = { ...(this.lightHist || {}), [id]: { at: Date.now(), bars: bars.map(m => m / 60), steps: steps.map(v => Math.min(1, v)), onMin, count } };
-    this._lhBusy.delete(id);
-  }
-  /** minutes a thermostat actively heated / cooled since midnight (hvac_action history) for the climate card bottom */
-  async loadClimateHist(id) {
-    const cur = this.climateHist?.[id]; if (cur && Date.now() - cur.at < 10 * 60000) return; if (this._chBusy?.has(id)) return;
-    (this._chBusy ||= new Set()).add(id);
-    const start = new Date(); start.setHours(0, 0, 0, 0); const from = start.getTime(), now = Date.now(), min = { heating: 0, cooling: 0 }; let known = false;
-    try {
-      const r = await this.hass.callWS({ type: "history/history_during_period", start_time: start.toISOString(), entity_ids: [id], minimal_response: false, no_attributes: false, significant_changes_only: false });
-      const rows = (r?.[id] || []).map(x => ({ act: x.a?.hvac_action, t: (x.lu || x.lc) * 1000 }));
-      rows.forEach((x, i) => { if (x.act != null) known = true; if (!(x.act in min)) return; const a = Math.max(from, x.t), b = rows[i + 1]?.t ?? now; if (b > a) min[x.act] += (b - a) / 60000; });
-    } catch (e) { console.warn("[hacasa-nova] climate history failed", e); }
-    this.climateHist = { ...(this.climateHist || {}), [id]: { at: Date.now(), heat: Math.round(min.heating), cool: Math.round(min.cooling), known } };
-    this._chBusy.delete(id);
-  }
-  _stripDown(e) { if (e.pointerType !== "mouse") return; const st = e.currentTarget; this._down = { x: e.clientX, s: st.scrollLeft, st }; this._drag = 0; st.classList.add("drag");
-    const move = ev => { if (!this._down) return; const dx = ev.clientX - this._down.x; this._drag = Math.max(this._drag, Math.abs(dx)); this._down.st.scrollLeft = this._down.s - dx; };
-    const up = () => { const st = this._down?.st; this._down = null; removeEventListener("pointermove", move); removeEventListener("pointerup", up); setTimeout(() => this._drag = 0, 50); if (st) this._glide(st, st.scrollLeft, true); };
-    addEventListener("pointermove", move); addEventListener("pointerup", up); }
   /** wheel scrolls the row sideways with an eased glide instead of jumping per notch */
   _stripWheel(e) {
     if (innerWidth <= 900 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
