@@ -397,13 +397,33 @@ class HacasaNova extends LitElement {
   }
 
   /* ---------- strip: wheel + mouse drag ---------- */
-  _stripScroll(e) { const st = e.currentTarget; if (this._fadeRaf) return; this._fadeRaf = requestAnimationFrame(() => { this._fadeRaf = 0; this._fadeStrip(st); }); }
-  /** soft edges on the card row: each card that crosses an edge is masked to transparent there (not a dark overlay).
+  /** scrolling (swipe, wheel glide, snap) fades the edges in; ~140 ms after the row stops they fade out again,
+   *  so a card that has snapped into place is always fully visible */
+  _stripScroll(e) {
+    const st = e.currentTarget; st.__moving = true;
+    clearTimeout(st.__still); st.__still = setTimeout(() => { st.__moving = false; this._fadeTick(st); }, 140);
+    this._fadeTick(st);
+  }
+  /** eases the fade strength st.__fk toward 1 while moving, back to 0 at rest; redraws the masks every frame meanwhile */
+  _fadeTick(st) {
+    if (st.__raf) return;
+    let last = performance.now();
+    const step = now => {
+      st.__raf = 0; const dt = Math.max(0, now - last); last = now;
+      const k0 = st.__fk || 0, on = !!st.__moving;
+      const k = on ? Math.min(1, k0 + dt / 150) : Math.max(0, k0 - dt / 260);
+      st.__fk = k; this._fadeStrip(st);
+      if (on || k > 0) st.__raf = requestAnimationFrame(step);
+    };
+    st.__raf = requestAnimationFrame(step);
+  }
+  /** soft edges on the card row while it moves: each card crossing an edge is masked there (not a dark overlay).
    *  The mask sits on the card itself, not on the strip: a mask on the strip would make it a backdrop root and the
-   *  cards' frosted glass would blur nothing. The fade widens with the scroll distance, so it never pops in. */
+   *  cards' frosted glass would blur nothing. The fade widens with the scroll distance, its strength follows st.__fk. */
   _fadeStrip(st) {
     const cards = [...st.children].map(c => c.classList.contains("card") ? c : c.querySelector(":scope > .card") || c);
-    if (innerWidth <= 900) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // phone: grid, no row edges
+    const k = st.__fk || 0;
+    if (innerWidth <= 900 || k <= 0) { cards.forEach(c => c.removeAttribute("data-fm")); return; }   // at rest, or phone grid
     const F = 72, W = st.clientWidth, x = st.scrollLeft;
     const fl = Math.min(F, Math.max(0, x)), fr = Math.min(F, Math.max(0, st.scrollWidth - W - x));
     [...st.children].forEach((w, i) => {
@@ -412,6 +432,7 @@ class HacasaNova extends LitElement {
       c.setAttribute("data-fm", "");
       c.style.setProperty("--m0", `${-a}px`); c.style.setProperty("--m1", `${fl - a}px`);
       c.style.setProperty("--m2", `${W - fr - a}px`); c.style.setProperty("--m3", `${W - a}px`);
+      c.style.setProperty("--fe", (1 - k * .65).toFixed(3));   // edge opacity: 1 at rest … .35 while swiping
     });
   }
   /** energy page: today's use and return per hour, power peak and a 3 h sparkline */
