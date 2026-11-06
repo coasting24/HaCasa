@@ -199,7 +199,7 @@ export const styles = css`
   .pfade{display:none}
   @media (min-width:901px){
     :host(.perf) .pfade{display:block;position:absolute;z-index:2;pointer-events:none;bottom:calc(85px - 42px);height:calc(var(--card-h) + 74px);background:no-repeat 0 0/100% 100%}
-    :host(.perf) .pfade.l{left:calc(var(--pad) - 32px);width:96px;opacity:0;transition:opacity .25s}
+    :host(.perf) .pfade.l{left:calc(var(--pad) - 48px);width:112px;opacity:0;transition:opacity .25s}
     :host(.perf) .strip.scrolled~.pfade.l{opacity:1}
     :host(.perf) .pfade.r{right:0;width:64px}
   }

@@ -72,9 +72,7 @@ export async function edgeBg(bg, el, stops) {
     const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
     ctx.drawImage(img, (r.width - dw) / 2, (r.height - dh) / 2, dw, dh);
     wash(ctx, 0, 0, r.width, r.height, r.width, r.height);
-  } else {   // plain / gradient background: paint it with the browser itself is not possible here; keep the element's CSS
-    return null;
-  }
+  } else return null;   // gradient background (no photo): the caller paints the strip with CSS instead
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "destination-in";
   const g = ctx.createLinearGradient(0, 0, W, 0);
   for (const [x, a] of stops) g.addColorStop(Math.max(0, Math.min(1, x * d / W)), `rgba(0,0,0,${a})`);

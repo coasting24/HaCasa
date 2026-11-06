@@ -423,17 +423,24 @@ class HacasaNova extends LitElement {
   }
 
   /** the edge strips' pictures (perf.js edgeBg), set on each strip element; redrawn only when photo or place changed.
-   *  Left: full background at the row's edge, .38 at the title line (as the original shade), none 64px further in;
-   *  right: .38 at the screen edge, none 64px in. A gradient background (no photo) keeps the strips empty. */
+   *  Left: full background over the shadow margin, .38 at the title line (as the original shade), none 64px further in;
+   *  right: .38 at the screen edge, none 64px in. */
   _edges(bg) {
     for (const el of this.renderRoot.querySelectorAll(".pfade")) {
       const k = `${this._perfKey}|${JSON.stringify(el.getBoundingClientRect())}`;
       if (el.__k === k) continue; el.__k = k;
-      const w = el.getBoundingClientRect().width, stops = el.classList.contains("l") ? [[0, 1], [32, .38], [w, 0]] : [[0, 0], [w, .38]];
+      // left: starts 16px outside the row and fades in there (no seam against the real background), covers the 32px shadow
+      // margin completely (cards end at the title line, as in the original), then .38 at the line fading to none;
+      // right: none fading to .38 at the screen edge
+      const e = el.getBoundingClientRect(), stops = el.classList.contains("l") ? [[0, 0], [16, 1], [48, 1], [48, .38], [e.width, 0]] : [[0, 0], [e.width, .38]];
       edgeBg(bg, el, stops).then(url => {
         if (el.__k !== k) { if (url) URL.revokeObjectURL(url); return; }
         if (el.__url) URL.revokeObjectURL(el.__url); el.__url = url;
-        el.style.backgroundImage = url ? `url("${url}")` : "none";
+        if (url) { el.style.background = `url("${url}") no-repeat 0 0/100% 100%`; el.style.maskImage = el.style.webkitMaskImage = ""; return; }
+        // gradient background (no photo): the gradient itself, placed where .bg has it, faded by a mask (it never moves)
+        const r = bg.getBoundingClientRect(), m = `linear-gradient(to right,${stops.map(([x, a]) => `rgba(0,0,0,${a}) ${x}px`).join(",")})`;
+        el.style.background = `${getComputedStyle(bg).backgroundImage} ${r.left - e.left}px ${r.top - e.top}px/${r.width}px ${r.height}px no-repeat`;
+        el.style.maskImage = el.style.webkitMaskImage = m;
       }).catch(() => {});
     }
   }
