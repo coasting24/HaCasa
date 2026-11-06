@@ -176,6 +176,16 @@ export const styles = css`
   /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (the gradient --g is built per card by _fadeStrip) instead of a dark overlay */
   .strip>[data-fm],.strip>*>[data-fm]{-webkit-mask-image:var(--g);mask-image:var(--g);--o:64px;-webkit-mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));-webkit-mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-clip:no-clip;mask-clip:no-clip}
   .strip::after{content:"";flex:none;width:var(--pad)}
+  /* performance mode (perf.js): the photo stands still, the row's cards show a blurred bitmap of it (--bgblur, placed per
+     card at --bgp) under their tint instead of a live backdrop-filter; cards with their own full background keep theirs */
+  :host(.calm) .bg:not(.out){animation:fadeIn .4s ease-out both}
+  :host(.perf) .strip .card{--tint:var(--card)}
+  :host(.perf) .strip .card:not(.appart):not(.art){backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(var(--tint),var(--tint)),var(--bgblur) var(--bgp,0 0)/var(--bgsize) no-repeat}
+  :host(.perf) .strip .card:hover{--tint:rgba(255,255,255,.14)}
+  :host(.perf) .strip .card.on{--tint:var(--card-on)}
+  :host(.perf) .strip .card.on:hover{--tint:rgba(255,255,255,.4)}
+  :host(.perf) .strip .card.unavailable,:host(.perf) .strip .card.add{--tint:rgba(255,255,255,.04)}
+  :host(.calm) .overlay{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,20,20,.72)}
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */
   .card{flex:none;width:var(--card-w);height:var(--card-h);background:var(--card);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);border:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 12px 32px rgba(0,0,0,.18);--cp:22px;padding:var(--cp);display:grid;grid-template-columns:minmax(0,1fr) max-content;grid-template-rows:max-content 1fr max-content max-content 1fr 28px;grid-template-areas:"i c" ". ." "n n" "s s" ". ." "l l";scroll-snap-align:start;position:relative;border-radius:var(--r);overflow:hidden;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;animation:rise .55s var(--ease) both;transition:transform .25s var(--ease),background .25s,border-color .25s,padding .3s}

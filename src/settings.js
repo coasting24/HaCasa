@@ -127,7 +127,8 @@ export function renderSettings(p) {
         ${field(t("Kamerfoto"), text(d.roomImage, v => set("roomImage", v), "/local/images/rooms/{slug}.jpg"), t("{slug} wordt de ruimtenaam · per kamer aanpasbaar bij Pagina's", { slug: "{slug}" }))}
         ${field(t("Foto startpagina"), text(d.homeImage, v => set("homeImage", v), "/local/images/rooms/home.jpg"))}
         ${field(t("Media-achtergrond"), text(d.mediaIdleImage, v => set("mediaIdleImage", v), "/local/images/music/idle-media.gif"), t("op mediakaarten als er niets speelt; leeg = geen"))}
-        ${field(t("Animaties"), check(!d.noMotion, v => set("noMotion", v ? undefined : true)), t("overgangen en kleine bewegingen; uit = alles direct, handig op een trage wandtablet"))}`)}
+        ${field(t("Animaties"), check(!d.noMotion, v => set("noMotion", v ? undefined : true)), t("overgangen en kleine bewegingen; uit = alles direct, handig op een trage wandtablet"))}
+        ${field(t("Prestatiemodus"), check(!!d.perfMode, v => set("perfMode", v ? true : undefined)), t("voor een trage wandtablet: geen live vervaging achter de kaarten, de foto staat stil"))}`)}
       ${sec(t("Gedrag"), "", html`
         ${field(t("Batterij-grens"), number(d.home?.lowBattery ?? 20, v => setHome("lowBattery", v)), t("onder dit percentage in Aandacht"))}
         ${field(t("Controleren op updates"), check(!d.noUpdateCheck, v => set("noUpdateCheck", v ? undefined : true)), t("melding op de startpagina als er een nieuwe HaCasa Nova is (alleen voor beheerders)"))}

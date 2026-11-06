@@ -473,4 +473,5 @@ export default {
   "Geen onbereikbare apparaten, lege batterijen of updates": "No unreachable devices, empty batteries or updates",
   "In deze ruimte": "In this room",
   "De entiteit hoort al bij deze ruimte; de kaart komt erbij.": "The entity already belongs to this room; the card is added.",
+  "Prestatiemodus": "Performance mode", "voor een trage wandtablet: geen live vervaging achter de kaarten, de foto staat stil": "for a slow wall tablet: no live blur behind the cards, the photo stands still",
 };

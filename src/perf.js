@@ -1,0 +1,68 @@
+// Performance mode (config.perfMode): no live blur behind the cards of the row.
+// A card's frosted glass is a backdrop-filter, re-blurred every frame while the row scrolls or the photo drifts —
+// the heaviest work on a slow wall tablet. Here the room photo, with the same dark wash as .bg::after, is blurred
+// once into a bitmap (canvas, half resolution) and painted behind each card at the spot it covers, so scrolling only
+// moves a picture. The photo's slow zoom (kb) is off in this mode, so the bitmap keeps matching it and the glass
+// that stays live (pills, bars, popups) sits over a still picture the browser can cache.
+
+const S = .5;      // bitmap scale: half resolution is plenty for a 16px blur
+const BLUR = 16;   // .card: backdrop-filter: blur(16px) saturate(1.2)
+
+const loadImg = src => new Promise((ok, fail) => {
+  const img = new Image();
+  if (new URL(src, location.href).origin !== location.origin) img.crossOrigin = "anonymous";
+  img.onload = () => ok(img); img.onerror = fail; img.src = src;
+});
+
+/** the wash of .bg::after (styles.js), drawn over the photo at (ox, oy, w, h) and extended over the whole canvas */
+function wash(ctx, ox, oy, w, h, cw, ch) {
+  const lin = ctx.createLinearGradient(0, oy, 0, oy + h);
+  lin.addColorStop(0, "rgba(51,51,51,.62)"); lin.addColorStop(.5, "rgba(51,51,51,.55)"); lin.addColorStop(1, "rgba(51,51,51,.45)");
+  ctx.fillStyle = lin; ctx.fillRect(0, 0, cw, ch);
+  // radial-gradient(90% 70% at 18% 62%, rgba(20,20,22,.55), transparent): an ellipse, drawn as a scaled circle
+  const rx = .9 * w, ry = .7 * h;
+  ctx.save(); ctx.translate(ox + .18 * w, oy + .62 * h); ctx.scale(1, ry / rx);
+  const rad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  rad.addColorStop(0, "rgba(20,20,22,.55)"); rad.addColorStop(1, "rgba(20,20,22,0)");
+  ctx.fillStyle = rad; ctx.fillRect(-cw * 4, -ch * 4 * rx / ry, cw * 8, ch * 8 * rx / ry); ctx.restore();
+}
+
+/** blurred picture of a .bg element as a CSS image value; null when the browser cannot do it (keep live blur) */
+export async function blurredBg(bg) {
+  const cs = getComputedStyle(bg), w = bg.offsetWidth, h = bg.offsetHeight;
+  const m = cs.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+  if (!m) return cs.backgroundImage;   // a smooth gradient (no photo): blurring it changes nothing
+  const img = await loadImg(m[1]);
+  const W = Math.max(1, Math.round(w * S)), H = Math.max(1, Math.round(h * S)), r = BLUR * S, p = 2 * r;
+  // source with a margin: the photo stretched under the margin, then exactly in place, so the blur has no dark rim
+  const src = document.createElement("canvas"); src.width = W + 2 * p; src.height = H + 2 * p;
+  const sx = src.getContext("2d"), k = Math.max(W / img.naturalWidth, H / img.naturalHeight);   // background-size: cover
+  const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+  sx.drawImage(img, 0, 0, src.width, src.height);
+  sx.drawImage(img, p + (W - dw) / 2, p + (H - dh) / 2, dw, dh);   // background-position: center
+  wash(sx, p, p, W, H, src.width, src.height);
+  const out = document.createElement("canvas"); out.width = W; out.height = H;
+  const ox = out.getContext("2d");
+  ox.filter = `blur(${r}px) saturate(1.2)`;
+  if (ox.filter !== `blur(${r}px) saturate(1.2)`) return null;   // no canvas filters (older Safari)
+  ox.drawImage(src, -p, -p);
+  const blob = await new Promise(ok => out.toBlob(ok, "image/jpeg", .85));
+  return blob ? `url("${URL.createObjectURL(blob)}")` : null;
+}
+
+/** where the bitmap sits behind each card of a strip: offsets from layout (never transforms), minus the scroll */
+export function placeCards(st, bg) {
+  const abs = el => { let x = 0, y = 0; for (let e = el; e; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; } return [x, y]; };
+  if (!st.__pos || st.__pos.n !== st.children.length) {
+    const [bx, by] = abs(bg);
+    st.__pos = { n: st.children.length, items: [...st.children].map(w => {
+      const c = w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, [x, y] = abs(c);
+      return { c, x: x - bx, y: y - by, k: "" };
+    }) };
+  }
+  const sl = st.scrollLeft, stp = st.scrollTop;
+  for (const it of st.__pos.items) {
+    const k = `${-(it.x - sl)}px ${-(it.y - stp)}px`;
+    if (k !== it.k) { it.k = k; it.c.style.setProperty("--bgp", k); }
+  }
+}

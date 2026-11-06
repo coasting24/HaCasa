@@ -1,5 +1,6 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
+import { blurredBg, placeCards } from "./perf.js";
 import { t, locale, setLang, setTimeFormat, pickLang, inText, hc } from "./i18n.js";
 import { LitElement, html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
@@ -171,7 +172,7 @@ class HacasaNova extends LitElement {
     if (!this.hass) return;
     setLang(this.config.language || pickLang(this.hass.language || this.hass.locale?.language));
     setTimeFormat(this.hass.locale?.time_format, this.config.language ? locale() : this.hass.locale?.language || this.hass.language);   // a fixed panel language also sets the clock style
-    const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); setMotion(!still);
+    const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); this.classList.toggle("calm", !!this.config.perfMode); setMotion(!still);
     if (changed.has("popup")) { const was = changed.get("popup"); if (was && !this.popup) ghost(this, ".overlay", "pop-out", 200); else if (was?.menu && this.popup && !this.popup.menu && this.popup.type === was.type) ghost(this, ".pmenu", "menu-out", 170, (c, el) => { const r = el.getBoundingClientRect(); c.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;right:auto;bottom:auto;width:${r.width}px`; }); }
     if (!this._userLoaded) { this._userLoaded = true; this.loadUser(); this._unsubNotif = subscribeNotifications(this.hass, list => { this.notifications = list; }); this.subscribeTemplates(); }
     this.rooms = buildRooms(this.hass, this.config);
@@ -200,7 +201,8 @@ class HacasaNova extends LitElement {
   updated() {
     if (this._viewSwitch) { this._viewSwitch = false; requestAnimationFrame(() => { this.style.transform = "translateZ(0)"; requestAnimationFrame(() => { this.style.transform = ""; }); }); }
     afterRender(this);
-    for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; this._fadeStrip(st); }   // cards may have changed: measure again
+    for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; st.__pos = null; this._fadeStrip(st); }   // cards may have changed: measure again
+    this._perf();
   }
 
   /* ---------- actions ---------- */
@@ -397,6 +399,29 @@ class HacasaNova extends LitElement {
   }
 
   /* ---------- strip: wheel + mouse drag ---------- */
+  /** performance mode (perf.js): a blurred bitmap of the current photo behind the row's cards instead of live blur.
+   *  Rebuilt when the photo or the panel size changes; until it is ready (or if the browser cannot make it) the live
+   *  blur stays. */
+  _perf() {
+    const bg = this.config.perfMode ? this.renderRoot.querySelector(".bg:not(.out)") : null;
+    if (!bg) { this._perfBg = this._perfKey = null; this.classList.remove("perf"); return; }
+    const key = `${bg.className}|${bg.getAttribute("style")}|${bg.offsetWidth}x${bg.offsetHeight}`;
+    if (key !== this._perfKey) {
+      this._perfKey = key;
+      blurredBg(bg).then(css => {
+        if (this._perfKey !== key) return;   // a newer photo or size is already on its way
+        if (!css) { this._perfBg = null; this.classList.remove("perf"); return; }
+        const old = this._perfUrl; this._perfUrl = css.match(/^url\("(blob:[^"]+)"\)/)?.[1] || null;
+        this.style.setProperty("--bgblur", css); this.style.setProperty("--bgsize", `${bg.offsetWidth}px ${bg.offsetHeight}px`);
+        this._perfBg = bg; this.classList.add("perf");
+        for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__pos = null; placeCards(st, bg); }
+        if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);   // after the new one has painted
+      }).catch(e => { console.warn("[hacasa-nova] performance mode: no blurred background", e); if (this._perfKey === key) { this._perfBg = null; this.classList.remove("perf"); } });
+    } else if (this._perfBg) {
+      this._perfBg = bg;
+      for (const st of this.renderRoot.querySelectorAll(".strip")) placeCards(st, bg);
+    }
+  }
   /** edge fades of the card row, same behaviour as the original overlays: right edge always, left edge once the row
    *  is scrolled (eased in/out over .25 s), 64 px wide, as strong as the old .38 shade. Only the rendering changed:
    *  the cards turn see-through there instead of a dark gradient lying on top of them. */
@@ -408,7 +433,7 @@ class HacasaNova extends LitElement {
       st.__raf = 0; const dt = Math.max(0, now - last); last = now;
       const on = st.scrollLeft > 4, k0 = st.__fk ?? (on ? 1 : 0);
       const k = on ? Math.min(1, k0 + dt / 250) : Math.max(0, k0 - dt / 250);
-      st.__fk = k; this._fadeStrip(st);
+      st.__fk = k; this._fadeStrip(st); if (this._perfBg) placeCards(st, this._perfBg);
       if (k !== (on ? 1 : 0)) st.__raf = requestAnimationFrame(step);
     };
     st.__raf = requestAnimationFrame(step);

@@ -418,4 +418,5 @@ export default {
   "alleen in de automatische stand: leeg = alle ruimtes met apparaten (3.0 stopte stil bij 9)": "nur im automatischen Modus: leer = alle Bereiche mit Geräten (3.0 hörte still bei 9 auf)",
   "sjablonen met Jinja; plaatsen doe je per pagina via Bewerken → Kaart toevoegen": "Vorlagen mit Jinja; platzieren pro Seite über Bearbeiten → Karte hinzufügen",
   "templates rendert Home Assistant alleen voor beheerders": "Templates rendert Home Assistant nur für Administratoren", "{n} invulvelden": "{n} Eingabefelder",
+  "Prestatiemodus": "Leistungsmodus", "voor een trage wandtablet: geen live vervaging achter de kaarten, de foto staat stil": "für ein langsames Wandtablet: kein Live-Weichzeichnen hinter den Karten, das Foto steht still",
 };
