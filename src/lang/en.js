@@ -473,5 +473,7 @@ export default {
   "Geen onbereikbare apparaten, lege batterijen of updates": "No unreachable devices, empty batteries or updates",
   "In deze ruimte": "In this room",
   "De entiteit hoort al bij deze ruimte; de kaart komt erbij.": "The entity already belongs to this room; the card is added.",
+  "Weerpictogrammen": "Weather icons", "Getekend": "Drawn", "Ronde lucht": "Round sky", "ronde lucht: het huidige weer als rond stukje lucht in de kleur van het weer, met zon of maan op de rand; de verwachting houdt de getekende pictogrammen": "round sky: the current weather as a round piece of sky in the colour of the weather, with the sun or moon on its rim; the forecast keeps the drawn icons",
+  "Landschap": "Landscape", "Weerkaart: lucht": "Weather card: sky", "de bewegende lucht achter de weerkaart": "the moving sky behind the weather card", "Weerkaart: tekst": "Weather card: text", "Standaard": "Standard", "Grof": "Blunt", "Netjes": "Clean", "grof: de botte one-liners van Authentic Weather (met gevloek); netjes: dezelfde grappen zonder": "blunt: the cheeky one-liners of Authentic Weather (with swearing); clean: the same jokes without",
   "Prestatiemodus": "Performance mode", "voor een trage wandtablet: geen live vervaging achter de kaarten, de foto staat stil": "for a slow wall tablet: no live blur behind the cards, the photo stands still",
 };

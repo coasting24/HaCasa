@@ -1,5 +1,5 @@
 // Card renderers. Each returns a lit template. `p` is the panel (for hass, popups, services).
-import { t, locale, hc } from "./i18n.js";
+import { t, locale, hc, getLang } from "./i18n.js";
 import { html, nothing } from "lit";
 import { directive, Directive, PartType } from "lit/directive.js";
 import { classMap } from "lit/directives/class-map.js";
@@ -7,8 +7,10 @@ import { icon, isOn, unavailable, num, relTime, shortDate, sinceText, domain } f
 import { name, deviceName } from "./model.js";
 import { applianceState, applianceEnd, eventWhen, nextEvent } from "./extras2.js";
 import { spark } from "./extras3.js";
-import { tw } from "./motion.js";
+import { tw, motionOn } from "./motion.js";
 import { sky, feelsLike } from "./sky.js";
+import { authenticText } from "./authentic/index.js";
+import { landscape, phaseOf } from "./landscape.js";
 import { graphCard, stepGraph } from "./graph.js";
 import { peopleCard, securityCard, todoCard, todoEntity, evCard, evReady, timersCard, timerList, solarCard, solarReady, gardenCard, gardenReady } from "./cards2.js";
 import "./camsnap.js";
@@ -265,12 +267,13 @@ export function mediaCard(p, e) {
   const a = v.info?.attributes || {}, dur = num(a.media_duration), pos = num(a.media_position);
   const prog = on && dur ? Math.min(100, Math.max(0, ((pos ?? 0) + (a.media_position_updated_at ? (Date.now() - new Date(a.media_position_updated_at)) / 1000 : 0)) / dur * 100)) : v.paused && dur && pos != null ? pos / dur * 100 : null;
   const kind = a.media_content_type === "music" || a.media_artist ? "music" : "tv";
-  const corner = un ? t("Onbereikbaar") : v.app && !off && v.title ? `${st} · ${v.app.name}` : st;
-  return html`<div class=${classMap({ card: true, media: true, actions: true, on, unavailable: un, art: !!art, appart: !!brand })} style=${art ? `background-image:url("${art}")` : brand?.color ? `--app:${brand.color}` : ""}
+  // playing: the app alone (the pause button already says it plays), so the corner never runs into "…"
+  const corner = un ? t("Onbereikbaar") : v.app && !off && v.title ? (on ? v.app.name : `${st} · ${v.app.name}`) : st;
+  return html`<div class=${classMap({ card: true, media: true, actions: true, on, unavailable: un, art: !!art, appart: !!brand })} style=${art ? `--art:url("${art}")` : brand?.color ? `--app:${brand.color}` : ""}
       ${pressDir(p, { tap: () => p.openPopup({ type: "media", e }) })}>
     ${un ? ua() : nothing}
-    ${brand ? html`<ha-icon class="appi" icon=${brand.icon}></ha-icon>` : nothing}
-    <div class="i">${icoFor(p, e.id, kind === "music" ? "mdi:music-note-outline" : "mdi:television-play", kind === "music" ? "music" : "tv")}</div>
+    ${art ? html`<div class="i cov" style=${`background-image:url("${art}")`}></div>`
+      : html`<div class="i">${brand ? html`<ha-icon icon=${brand.icon}></ha-icon>` : icoFor(p, e.id, kind === "music" ? "mdi:music-note-outline" : "mdi:television-play", kind === "music" ? "music" : "tv")}</div>`}
     <div class="c">${corner}</div>
     <div class="n">${v.title && !off ? v.title : label(p, e)}</div>
     <div class="s">${v.title && !off ? [v.artist, label(p, e)].filter(Boolean).join(" · ") : un ? t("Onbereikbaar") : v.app && !off ? v.app.name : st}</div>
@@ -717,11 +720,17 @@ export function weatherCard(p, w) {
   const expect = wxExpect(p) || (a.wind_speed != null ? `${t("wind")} ${Math.round(a.wind_speed)} ${a.wind_speed_unit || t("km/u")}` : "");
   const rainBit = mm != null ? html`<span class=${classMap({ mm: true, dry: !mm })}>${snow ? FLAKE : DROP}${mm.toLocaleString(locale(), { maximumFractionDigits: 1 })} mm</span>`
     : pc != null ? html`<span class=${classMap({ mm: true, dry: pc < 20 })}>${snow ? FLAKE : DROP}${Math.round(pc)}%</span>` : nothing;
-  return html`<div class="card wxsky" ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
-    ${sky(p, w.state)}
+  // optional "Authentic Weather" (src/authentic): its animated sky (config.wxAnim) and its blunt one-liners (config.wxText)
+  const night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night", cfg = p.config || {};
+  const moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
+  const tempC = /F/i.test(a.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
+  const au = cfg.wxText ? authenticText(w.state, night, tempC, cfg.wxText === "mild", getLang()) : null;
+  return html`<div class=${classMap({ card: true, wxsky: true, wxau: !!au })} ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
+    ${cfg.wxAnim === "landscape" ? landscape(w.state, phaseOf(p.hass.states["sun.sun"]), tempC, moon, !motionOn()) : cfg.wxAnim === "authentic" ? html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact="true" moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>` : sky(p, w.state)}
     <div class="tnow"><b>${tw(String(temp))}<sup>°</sup></b>${feels != null ? html`<span>${t("voelt als {v}", { v: Math.round(feels) + "°" })}</span>` : nothing}</div>
     ${hi != null || rainBit !== nothing ? html`<div class="c wxc">${hi != null ? html`<span class="hl">${Math.round(hi)}°${lo != null ? html`<em>/${Math.round(lo)}°</em>` : nothing}</span>` : nothing}${rainBit}</div>` : nothing}
-    <div class="n">${condText(w.state)}</div><div class="s">${expect}</div>
+    ${au ? html`<div class="n">${au.pre}<em style=${`color:${au.color}`}>${au.word}</em>${au.post}</div><div class="s">${au.sub}</div>`
+      : html`<div class="n">${condText(w.state)}</div><div class="s">${expect}</div>`}
     ${tomorrow ? html`<div class="snt"><span class="lg">${tomorrowLine(tomorrow, false)}</span><span class="sh">${tomorrowLine(tomorrow, true)}</span></div>` : nothing}
   </div>`;
 }

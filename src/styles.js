@@ -13,6 +13,7 @@ import { calendarStyles } from "./calendar.js";
 import { cards2Styles } from "./cards2.js";
 import { popup2Styles } from "./popups2.js";
 import { skyStyles } from "./sky.js";
+import { landscapeStyles } from "./landscape.js";
 
 // Started from our own Homio-style mockup; scoped to the panel host.
 export const styles = css`
@@ -158,6 +159,16 @@ export const styles = css`
   .wx .hl{font-size:13px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--fg-3);margin-top:4px}
   /* one glass bar: the next hours, then tomorrow behind a divider */
   .wx .big .wxi{margin-top:6px}
+  /* "sky tile": temperature, condition and the forecast bar on one glass tile like the cards, the weather drawn in its top-right
+     corner (sceneGlyph) and its colour only a tint; the tile is as wide as the forecast bar */
+  .wx.wxtile{position:relative;width:max-content;margin-left:auto;text-align:left;padding:18px 22px 16px;border-radius:var(--r);overflow:hidden;background:var(--card);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);border:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 12px 32px rgba(0,0,0,.18)}
+  .wx.wxtile>:not(.wxs){position:relative}
+  .wx.wxtile .big{justify-content:flex-start}
+  .wx.wxtile .t{font-size:64px;font-weight:600;letter-spacing:-2.5px;text-shadow:0 1px 10px rgba(0,0,0,.25)}
+  .wx.wxtile .t sup{font-size:26px}
+  .wx.wxtile .cnd{margin-top:6px;max-width:330px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.2)}
+  .wx.wxtile .hl{color:var(--fg-2)}
+  .wx.wxtile .wbar{margin:16px -22px -16px;padding:12px 16px 14px;border:0;border-top:1px solid var(--line);border-radius:0;background:rgba(0,0,0,.06);backdrop-filter:none;-webkit-backdrop-filter:none}
   .wx .wbar{display:inline-flex;margin-top:16px;padding:10px 6px;border-radius:var(--r);background:rgba(255,255,255,.10);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);text-align:center}
   .wx .wbar div{width:52px;font-size:12px;font-weight:600;color:var(--fg-2)}
   .wx .wbar div .wxi{display:block;margin:5px auto}
@@ -171,6 +182,10 @@ export const styles = css`
      The extra padding is taken off "bottom" and "left", so the cards stay where they were; the strip itself lets clicks through, only the cards catch them */
   .strip{position:absolute;left:calc(var(--pad) - 32px);right:0;bottom:calc(85px - 42px);display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:26px 0 48px 32px;scroll-padding-left:32px;pointer-events:none}
   .strip>*{pointer-events:auto}
+  /* touch screens: iOS Safari does not pan a scroller that has pointer-events:none, even where its cards catch the
+     touch (the row stood still on iPad). There the strip takes touches itself; a tap on its empty padding is handed on
+     to whatever lies below it (_stripTap in panel.js) */
+  @media (any-pointer:coarse){ .strip{pointer-events:auto} }
   @media (pointer:coarse){ .strip{scroll-snap-type:x proximity} }
   .strip::-webkit-scrollbar{display:none}
   /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (the gradient --g is built per card by _fadeStrip) instead of a dark overlay */
@@ -278,24 +293,21 @@ export const styles = css`
   .card .seg{display:inline-flex;border-radius:999px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);padding:3px;width:max-content}
   .card .seg button{border:0;border-radius:999px;background:transparent;color:var(--fg-3);font:inherit;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;height:32px;padding:0 14px;cursor:pointer}
   .card .seg button.on{background:rgba(255,255,255,.9);color:#1d1d1f}
-  /* media: artwork fills the card, the text sits on a translucent panel on the right, transport row at the bottom */
-  .card.media{grid-template-areas:"i c" ". ." "n n" "s s" "l l" ". .";grid-template-rows:max-content 1fr max-content max-content max-content 1fr;padding:var(--cp) var(--cp) 72px calc(var(--card-w) * .34 + var(--cp))}
-  .card.media:not(.art):not(.appart){padding-left:var(--cp)}
+  /* media: the cover as a small square where the icon sits, the same cover blurred and dimmed over the whole card (the
+     card takes its colour), text and the transport row on the full width; an app without cover: its colour and icon */
+  .card.media{grid-template-areas:"i c" ". ." "n n" "s s" "l l" ". .";grid-template-rows:max-content 1fr max-content max-content max-content 1fr;padding:var(--cp) var(--cp) 72px}
   .card.art,.card.appart{--cb:rgba(255,255,255,.2);border-color:var(--cb)}
-  .card.art{background-size:cover;background-position:center}
-  .card.art::before,.card.appart::before{content:"";position:absolute;top:0;bottom:0;right:0;left:34%;background:rgba(20,20,24,.32);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);box-shadow:-6px 0 14px -2px rgba(0,0,0,.4);pointer-events:none}
-  .card.art>*:not(.ctl):not(.ua):not(.appi):not(.c),.card.appart>*:not(.ctl):not(.ua):not(.appi):not(.c){position:relative}
-  .card.art .c,.card.appart .c{z-index:1}
-  .card.art .ctl{z-index:1}
+  .card.art::before{content:"";position:absolute;inset:-40px;background:linear-gradient(rgba(0,0,0,.08),rgba(0,0,0,.32)),var(--art) center/cover;filter:blur(30px) saturate(1.5) brightness(.6);pointer-events:none}
+  .card.art>*,.card.appart>*{z-index:1}
+  .card.media .i.cov{width:46px;height:46px;margin:0;border-radius:var(--r-sm);background:center/cover no-repeat;box-shadow:0 6px 16px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.14)}
+  .card.media.art .c{height:46px}
+  .card.media .c{max-width:calc(100% - 2 * var(--cp) - 60px)}
   .card.media .prog{grid-area:l;height:3px;border-radius:2px;background:rgba(255,255,255,.18);margin-top:10px;overflow:hidden;align-self:start}
   .card.media .prog i{display:block;height:100%;background:#fff;border-radius:2px}
-  .card.media .ctl{left:calc(var(--card-w) * .34 + var(--cp));right:var(--cp);bottom:var(--cp);width:auto;display:flex;gap:6px;grid-auto-rows:auto}
-  .card.media:not(.art):not(.appart) .ctl{left:var(--cp)}
+  .card.media .ctl{left:var(--cp);right:var(--cp);bottom:var(--cp);width:auto;display:flex;gap:6px;grid-auto-rows:auto}
   .card.media .ctl button{flex:1;height:42px;background:rgba(255,255,255,.12);border:1px solid var(--line)}
   .card.media .ctl button.main{flex:1.6;background:rgba(255,255,255,.9);color:#1d1d1f;border-color:transparent}
-  /* media card without artwork: the running app in its brand colour */
   .card.appart{background:linear-gradient(135deg,color-mix(in srgb,var(--app,#8a8f96) 70%,#1c1c1c) 0%,color-mix(in srgb,var(--app,#8a8f96) 30%,#1c1c1c) 100%)}
-  .card.appart .appi{position:absolute;left:calc(var(--card-w) * .17);top:50%;transform:translate(-50%,-50%);--mdc-icon-size:44px;opacity:.95}
   /* light colour tint */
   .card.tinted .slider{background:rgba(255,255,255,.9)}
   /* vertical brightness / speed / position bar: full card height, fills from the bottom, value in the corner */
@@ -770,6 +782,9 @@ export const styles = css`
     .wx .big img.ico,.wx .big ha-icon{width:36px;height:36px;--mdc-icon-size:36px;margin-top:0}
     .wx .big .wxe{font-size:32px;margin-top:2px}
     .wx .big .wxi{width:36px;height:36px;margin-top:0}
+    .wx.wxtile{margin-left:0;padding:12px 16px}
+    .wx.wxtile .t{font-size:40px;letter-spacing:-1.5px}
+    .wx.wxtile .t sup{font-size:17px}
     .card .i .wxe{font-size:26px;line-height:30px}
     .wx .t{font-size:40px;letter-spacing:-2px}
     .wx .t sup{font-size:16px;line-height:1.4}
@@ -812,9 +827,8 @@ export const styles = css`
     .card .seg button{height:24px;padding:0 9px;font-size:9px}
     .card.media{padding:var(--cp) var(--cp) 44px}
     .card.media .prog{margin-top:6px}   /* keeps clear of the buttons below */
-    .card.appart .appi{display:none !important}
-    .card.appart::before{left:0;box-shadow:none;background:rgba(20,20,24,.35)}
-    .card.art::before{left:0;box-shadow:none;background:rgba(20,20,24,.5)}
+    .card.media .i.cov{width:34px;height:34px}
+    .card.media.art .c{height:34px}
     .card.media .ctl{left:var(--cp);right:var(--cp);bottom:10px;gap:4px}
     .card.media .ctl button{height:30px}
     .card .slider{height:6px}
@@ -873,5 +887,6 @@ export const styles = css`
   .card.unavailable .n{margin-bottom:6px}
   @media (max-width:900px){ .card.unavailable{padding:0 16px} }
   ${unsafeCSS(skyStyles)}
+  ${unsafeCSS(landscapeStyles)}
   ${unsafeCSS(motionStyles)}
 `;

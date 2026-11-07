@@ -15,7 +15,7 @@ import { renderPage, PAGES } from "./pages.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
 import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
 import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, anyIco, wxDays } from "./cards.js";
-import { wxIcon, wxDefs } from "./sky.js";
+import { wxIcon, wxDefs, setWxStyle } from "./sky.js";
 import { renderPills, pillTemplates } from "./pills.js";
 import { iconPicker } from "./iconpicker.js";
 import { quickRow, watchTriggers, presetCard, selfUpdate } from "./features.js";
@@ -172,7 +172,7 @@ class HacasaNova extends LitElement {
     if (!this.hass) return;
     setLang(this.config.language || pickLang(this.hass.language || this.hass.locale?.language));
     setTimeFormat(this.hass.locale?.time_format, this.config.language ? locale() : this.hass.locale?.language || this.hass.language);   // a fixed panel language also sets the clock style
-    const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); this.classList.toggle("calm", !!this.config.perfMode); setMotion(!still);
+    const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); this.classList.toggle("calm", !!this.config.perfMode); setMotion(!still); setWxStyle(this.config.wxIcons);
     if (changed.has("popup")) { const was = changed.get("popup"); if (was && !this.popup) ghost(this, ".overlay", "pop-out", 200); else if (was?.menu && this.popup && !this.popup.menu && this.popup.type === was.type) ghost(this, ".pmenu", "menu-out", 170, (c, el) => { const r = el.getBoundingClientRect(); c.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;right:auto;bottom:auto;width:${r.width}px`; }); }
     if (!this._userLoaded) { this._userLoaded = true; this.loadUser(); this._unsubNotif = subscribeNotifications(this.hass, list => { this.notifications = list; }); this.subscribeTemplates(); }
     this.rooms = buildRooms(this.hass, this.config);
@@ -510,6 +510,72 @@ class HacasaNova extends LitElement {
     }
   }
 
+  /** energy page: today's use and return per hour, power peak and a 3 h sparkline */
+  async loadEnergyToday() {
+    const en = this.home.energy; this.energyHist = { ...(this.energyHist || {}), at: Date.now() };
+    const solarId = this.config.home?.energy?.solarToday;
+    const [use, sun, pw, sol] = await Promise.all([en.today ? hourlyToday(this.hass, en.today.entity_id) : null, en.returned ? hourlyToday(this.hass, en.returned.entity_id) : null, en.power ? fetchNumeric(this.hass, [en.power.entity_id], 24) : null, solarId ? hourlyToday(this.hass, solarId) : null]);
+    const rows = pw?.[en.power?.entity_id] || [], peak = rows.length ? rows.reduce((a, b) => b.v > a.v ? b : a) : null;
+    if (en.power) this.netHist = { ...(this.netHist || {}), [en.power.entity_id]: rows.filter(r => r.t > Date.now() - 3 * 3600000) };
+    this.energyHist = { at: Date.now(), use: use || [], sun: sun || [], sol: sol || [], peak: peak ? { v: peak.v, t: new Date(peak.t).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) } : null };
+  }
+  /** plug with a meter: 3 h of power for the sparkline, today's kWh per hour from the recorder */
+  async loadPlug(id, powerId, energyId) {
+    if (this._plugBusy?.has(id)) return; (this._plugBusy ||= new Set()).add(id);
+    const [hist, rows] = await Promise.all([fetchNumeric(this.hass, [powerId], 3), energyId ? hourlyToday(this.hass, energyId) : null]);
+    const sp = (hist[powerId] || []), peak = sp.length ? sp.reduce((a, b) => b.v > a.v ? b : a) : null;
+    const today = rows ? rows.reduce((n, r) => n + (r.v || 0), 0) : null, maxH = rows ? Math.max(...rows.map(r => r.v || 0), 0.001) : 1;
+    this.plugHist = { ...(this.plugHist || {}), [id]: { at: Date.now(), spark: sp, peak: peak ? { v: Math.round(peak.v), t: peak.t } : null, rows, today, maxH } };
+    this._plugBusy.delete(id);
+  }
+  /** off-timer on a plug (on-timer when it is off): runs while the panel is open */
+  setPlugTimer(a, min) {
+    const cur = this.plugTimers?.[a.id]; if (cur) clearTimeout(cur.h);
+    if (cur?.min === min) { const n = { ...this.plugTimers }; delete n[a.id]; this.plugTimers = n; return; }
+    const sw = a.switch; if (!sw) return;
+    const off = isOn(sw.state); if (!off) this.call("switch", "turn_on", { entity_id: sw.id });
+    const h = setTimeout(() => { this.call("switch", "turn_off", { entity_id: sw.id }); const n = { ...this.plugTimers }; delete n[a.id]; this.plugTimers = n; }, min * 60000);
+    this.plugTimers = { ...(this.plugTimers || {}), [a.id]: { min, at: Date.now() + min * 60000, off: true, h } };
+  }
+  /** 24-hour on/off history of a light for the "today" card bottom: minutes on per clock hour, total and switch count */
+  async loadLightHist(id) {
+    const cur = this.lightHist?.[id]; if (cur && Date.now() - cur.at < 10 * 60000) return; if (this._lhBusy?.has(id)) return;
+    (this._lhBusy ||= new Set()).add(id);
+    const rows = (await fetchHistory(this.hass, id, 24)) || [];
+    rows.sort((a, b) => a.t - b.t);
+    const now = Date.now(), start = now - 24 * 3600000, bars = Array(24).fill(0), steps = Array(96).fill(0); let onMin = 0, count = 0;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].s !== "on") continue;
+      if (i && rows[i - 1].s !== "on") count++; else if (!i && rows[i].t > start) count++;
+      const a = Math.max(start, rows[i].t.getTime()), b = Math.min(now, rows[i + 1] ? rows[i + 1].t.getTime() : now);
+      for (let x = a; x < b; x += 60000) { bars[new Date(x).getHours()] += 1; steps[Math.min(95, Math.floor((x - start) / 900000))] += 1 / 15; onMin++; }
+    }
+    this.lightHist = { ...(this.lightHist || {}), [id]: { at: Date.now(), bars: bars.map(m => m / 60), steps: steps.map(v => Math.min(1, v)), onMin, count } };
+    this._lhBusy.delete(id);
+  }
+  /** minutes a thermostat actively heated / cooled since midnight (hvac_action history) for the climate card bottom */
+  async loadClimateHist(id) {
+    const cur = this.climateHist?.[id]; if (cur && Date.now() - cur.at < 10 * 60000) return; if (this._chBusy?.has(id)) return;
+    (this._chBusy ||= new Set()).add(id);
+    const start = new Date(); start.setHours(0, 0, 0, 0); const from = start.getTime(), now = Date.now(), min = { heating: 0, cooling: 0 }; let known = false;
+    try {
+      const r = await this.hass.callWS({ type: "history/history_during_period", start_time: start.toISOString(), entity_ids: [id], minimal_response: false, no_attributes: false, significant_changes_only: false });
+      const rows = (r?.[id] || []).map(x => ({ act: x.a?.hvac_action, t: (x.lu || x.lc) * 1000 }));
+      rows.forEach((x, i) => { if (x.act != null) known = true; if (!(x.act in min)) return; const a = Math.max(from, x.t), b = rows[i + 1]?.t ?? now; if (b > a) min[x.act] += (b - a) / 60000; });
+    } catch (e) { console.warn("[hacasa-nova] climate history failed", e); }
+    this.climateHist = { ...(this.climateHist || {}), [id]: { at: Date.now(), heat: Math.round(min.heating), cool: Math.round(min.cooling), known } };
+    this._chBusy.delete(id);
+  }
+  _stripDown(e) { if (e.pointerType !== "mouse") return; const st = e.currentTarget; this._down = { x: e.clientX, s: st.scrollLeft, st }; this._drag = 0; st.classList.add("drag");
+    const move = ev => { if (!this._down) return; const dx = ev.clientX - this._down.x; this._drag = Math.max(this._drag, Math.abs(dx)); this._down.st.scrollLeft = this._down.s - dx; };
+    const up = () => { const st = this._down?.st; this._down = null; removeEventListener("pointermove", move); removeEventListener("pointerup", up); setTimeout(() => this._drag = 0, 50); if (st) this._glide(st, st.scrollLeft, true); };
+    addEventListener("pointermove", move); addEventListener("pointerup", up); }
+  /** a tap on the strip's own padding (touch screens, where the strip catches pointers): pass it to what lies below */
+  _stripTap(e) {
+    const st = e.currentTarget; if (e.target !== st) return;
+    st.style.pointerEvents = "none"; const under = this.renderRoot.elementFromPoint(e.clientX, e.clientY); st.style.pointerEvents = "";
+    if (under && under !== st && !st.contains(under)) under.click?.();
+  }
   /** wheel scrolls the row sideways with an eased glide instead of jumping per notch */
   _stripWheel(e) {
     if (innerWidth <= 900 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
@@ -646,8 +712,10 @@ class HacasaNova extends LitElement {
     const hi = num(today?.temperature), lo = num(today?.templow);
     const line = [hi != null && lo != null ? `H ${Math.round(hi)}° · L ${Math.round(lo)}°` : "", a.wind_speed != null ? t("Wind {n}", { n: `${Math.round(a.wind_speed)} ${a.wind_speed_unit || t("km/u")}` }) : ""].filter(Boolean).join(" · ");
     const th = num(tomorrow?.temperature), tl = num(tomorrow?.templow);
-    return html`<div class=${classMap({ wx: true, wxm: !!this.config.home?.wxMobile })} @click=${ev => { ev.stopPropagation(); this.openPopup({ type: "weather" }); }}>
-      <div class="big">${wxIcon(w.state, 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
+    const tile = this.config.wxIcons === "scene";   // "sky tile": everything below sits on one glass tile tinted by the weather
+    return html`<div class=${classMap({ wx: true, wxm: !!this.config.home?.wxMobile, wxtile: tile })} @click=${ev => { ev.stopPropagation(); this.openPopup({ type: "weather" }); }}>
+      ${tile ? wxIcon(w.state, 0, true) : nothing}
+      <div class="big">${tile ? nothing : wxIcon(w.state, 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
       <div class="cnd">${condText(w.state)}${wxExpect(this) ? html`<i class="dt"></i>${wxExpect(this)}` : nothing}</div>
       ${line ? html`<div class="hl">${line}</div>` : nothing}
       ${hours.length || tomorrow ? html`<div class="wbar">${hours.map(f => html`<div>${t("{h}u", { h: new Date(f.datetime).getHours() })}${wxIcon(f.condition, 24)}<b>${Math.round(num(f.temperature) ?? 0)}°</b></div>`)}
@@ -671,7 +739,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(h.temp, t(this.pageCfg("home").title || this.config.home?.greeting || "") || greeting(), "", this.tickerOn("home", items), html`${this.renderPills(h)}${quickRow(this)}`, "home", this.renderWx(h.weather), h.hum)}
       ${editing ? editTools(this, "home") : nothing}
-      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
+      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen kaarten: wijs entiteiten toe aan ruimtes in Home Assistant.")}</div>` : nothing}
       ${editing ? editBar(this, "home") : nothing}
       <div class=${classMap({ banner: true, show: h.motion.length > 0 && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in {rooms}", { rooms: h.motion.map(r => inText(r.name)).join(", ") })}</div>`;
@@ -757,7 +825,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}
       ${editing ? editTools(this, r.id) : nothing}
-      <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
+      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen apparaten in deze ruimte.")}</div>` : nothing}
       ${editing ? editBar(this, r.id) : nothing}
       <div class=${classMap({ banner: true, show: r.motionOn && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in de {room}", { room: inText(r.name) })}</div>`;

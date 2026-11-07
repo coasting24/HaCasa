@@ -56,15 +56,91 @@ function glyph(c) {
   }
   return `<svg viewBox="16 16 168 168" aria-hidden="true">${g}</svg>`;
 }
-/** render once in the panel root, outside anything that can be hidden */
-export const wxDefs = unsafeHTML(`<svg class="wxdefs" width="0" height="0" aria-hidden="true">${DEFS}</svg>`);
 const ICONS = new Map();
-/** animated icon for a weather condition, `size` in px */
-export function wxIcon(c, size = 24) {
-  const k = `${c}|${size}`;
-  if (!ICONS.has(k)) ICONS.set(k, unsafeHTML(`<span class="wxi" style="--s:${size}px">${glyph(c)}</span>`));
+let wxStyle = "";
+/** icon style from the settings (config.wxIcons): "" = the drawn icons above, "scene" = a sky tile (sceneGlyph) behind the current weather */
+export const setWxStyle = v => { wxStyle = v === "scene" ? "scene" : ""; };
+/** animated icon for a weather condition, `size` in px. `hero`: the current weather next to the temperature, the one place
+ *  big enough for the sky tile (in the small forecast slots it shrinks to a coloured dot, so those keep the drawn icons) */
+export function wxIcon(c, size = 24, hero = false) {
+  const scene = hero && wxStyle === "scene", k = `${scene ? "scene" : ""}|${c}|${size}`;
+  if (!ICONS.has(k)) ICONS.set(k, unsafeHTML(scene
+    ? `<span class="wxs">${sceneGlyph(c)}</span>`
+    : `<span class="wxi" style="--s:${size}px">${glyph(c)}</span>`));
   return ICONS.get(k);
 }
+
+/* ------------------------------------------------- scene icons (the round weather disc, in miniature) ------------------------------------------------- */
+// A sky tile per condition (the round weather disc of the GlassHome Weather Scene, opened up into a rounded rectangle): a
+// condition-coloured face with a soft glow, the sun or moon in its top-right corner and the weather drawn across it (drifting clouds, rain, snow, hail, fog, blown leaves, lightning, twinkling stars), plus a glass gloss.
+// Everything sits in a W × 100 box; the gradients live once in SCENE_DEFS (part of wxDefs), so every icon only points at them.
+const NIGHT = ["oklch(0.44 0.16 292)", "oklch(0.26 0.14 299)", "oklch(0.55 0.19 295 / 0.55)"];
+// condition → [face light, face dark, glow, sun | moon | "", accessories]
+const SCENE = {
+  sunny: ["oklch(0.78 0.11 232)", "oklch(0.62 0.13 246)", "oklch(0.80 0.15 75 / 0.5)", "sun", ""],
+  "clear-night": [...NIGHT, "moon", "stars"],
+  partlycloudy: ["oklch(0.74 0.10 235)", "oklch(0.58 0.13 250)", "oklch(0.70 0.12 240 / 0.45)", "sun", "clouds"],
+  cloudy: ["oklch(0.72 0.03 250)", "oklch(0.55 0.03 255)", "oklch(0.72 0.02 250 / 0.40)", "", "clouds"],
+  rainy: ["oklch(0.66 0.07 220)", "oklch(0.48 0.08 228)", "oklch(0.64 0.09 218 / 0.45)", "", "clouds rain"],
+  pouring: ["oklch(0.60 0.08 224)", "oklch(0.42 0.09 232)", "oklch(0.58 0.10 222 / 0.5)", "", "clouds pour"],
+  snowy: ["oklch(0.80 0.04 275)", "oklch(0.64 0.05 270)", "oklch(0.86 0.05 282 / 0.55)", "", "clouds snow"],
+  "snowy-rainy": ["oklch(0.72 0.05 252)", "oklch(0.56 0.06 256)", "oklch(0.76 0.06 260 / 0.5)", "", "clouds snow rain"],
+  lightning: ["oklch(0.44 0.13 285)", "oklch(0.28 0.12 291)", "oklch(0.60 0.21 292 / 0.6)", "", "clouds bolt"],
+  "lightning-rainy": ["oklch(0.44 0.13 285)", "oklch(0.28 0.12 291)", "oklch(0.60 0.21 292 / 0.6)", "", "clouds bolt rain"],
+  fog: ["oklch(0.80 0.012 250)", "oklch(0.66 0.012 250)", "oklch(0.82 0.01 250 / 0.35)", "", "fog"],
+  hail: ["oklch(0.78 0.05 235)", "oklch(0.60 0.06 242)", "oklch(0.80 0.06 238 / 0.5)", "", "hail"],
+  windy: ["oklch(0.75 0.06 236)", "oklch(0.60 0.08 246)", "oklch(0.80 0.09 232 / 0.42)", "sun", "wind"],
+  "windy-variant": ["oklch(0.71 0.04 240)", "oklch(0.56 0.05 248)", "oklch(0.78 0.06 235 / 0.4)", "", "wind clouds"],
+  exceptional: ["oklch(0.64 0.10 30)", "oklch(0.46 0.13 28)", "oklch(0.62 0.14 30 / 0.5)", "", "clouds bolt"],
+};
+const sceneOf = c => SCENE[c] ? c : "cloudy";
+const stop = (o, col, a = 1) => `<stop offset="${o}" style="stop-color:${col}${a < 1 ? `;stop-opacity:${a}` : ""}"/>`;
+const SCENE_DEFS = Object.entries(SCENE).map(([c, [hi, lo, glow]]) =>
+  `<radialGradient id="hcs-f-${c}" cx="22%" cy="18%" r="110%">${stop(0, hi, .42)}${stop(1, lo, .42)}</radialGradient>` +
+  `<radialGradient id="hcs-g-${c}" cx="86%" cy="6%" r="70%">${stop(0, glow)}${stop(1, glow, 0)}</radialGradient>`).join("") + `
+  <radialGradient id="hcs-sun" cx="38%" cy="36%" r="70%">${stop(0, "oklch(0.94 0.14 92)")}${stop(1, "oklch(0.82 0.18 68)")}</radialGradient>
+  <radialGradient id="hcs-moon" cx="38%" cy="34%" r="72%">${stop(0, "oklch(0.96 0.05 95)")}${stop(1, "oklch(0.84 0.06 90)")}</radialGradient>
+  <linearGradient id="hcs-gl" x1="0" y1="0" x2="0" y2="1">${stop(0, "#fff", .08)}${stop(.5, "#fff", 0)}</linearGradient>
+  <filter id="hcs-mist" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.2"/></filter>
+  <filter id="hcs-glow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.5" flood-color="oklch(0.86 0.17 78)" flood-opacity=".55"/></filter>
+  <filter id="hcs-mglow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.2" flood-color="oklch(0.90 0.09 95)" flood-opacity=".6"/></filter>`;
+const sCloud = (x, y, s, op, fill = "white") => `<g transform="translate(${x} ${y}) scale(${s})" opacity="${op}"><path d="M -13 4 a 7 7 0 0 1 1 -13.8 a 9 9 0 0 1 17 -2 a 7.5 7.5 0 0 1 8 4.5 a 6.5 6.5 0 0 1 -1.5 11.3 z" fill="${fill}"/></g>`;
+const LEAVES = [[34, 24, 1.2, "oklch(0.66 0.15 138)", 5.2, 0], [46, 41, 1, "oklch(0.71 0.15 78)", 6.4, 1.1], [38, 57, 1.3, "oklch(0.58 0.13 52)", 5.8, 2.3], [52, 31, .9, "oklch(0.68 0.16 128)", 7, .6], [42, 69, 1.1, "oklch(0.73 0.15 85)", 6, 3]];
+/** the sky as a tile, W × H (top-right anchored, so a taller or wider tile only shows more of the left / bottom) (the disc's art spread out): sun / moon, clouds and lightning in the top-right
+ *  corner with their rain, snow, hail or leaves below them (the left stays free for the temperature), stars and fog across the width */
+function sceneGlyph(cond, W = 270, H = 185) {
+  const c = sceneOf(cond), [, , , body, accs] = SCENE[c], acc = new Set(accs.split(" ").filter(Boolean));
+  const R = W - 100, k = W / 100, X = x => +(x * k).toFixed(1);   // R: right-anchored; X: spread over the width
+  const ad = (dur, delay) => `animation-duration:${dur}s;animation-delay:${delay}s`;
+  let a = "";
+  // surface shading: ripples around the sun / moon on a clear sky, stacked water bands in heavy weather
+  const wave = (yl, yr, amp) => `M -10 ${yl} C ${X(28)} ${yl - amp}, ${X(74)} ${yr - amp}, ${W + 10} ${yr} L ${W + 10} ${H + 14} L -10 ${H + 14} Z`;
+  a += `<g class="s-waves">` + (body
+    ? (c === "sunny" ? [[44, 22, "#fff", .05], [84, 26, "#000", .05], [120, 30, "#000", .07], [170, 34, "#fff", .04], [230, 40, "#000", .05]] : [[34, 16, "#fff", .05], [58, 18, "#000", .06], [86, 20, "#fff", .05], [116, 26, "#000", .05], [160, 30, "#fff", .04], [210, 36, "#000", .05]])
+      .map(([r, w, col, o]) => `<circle cx="${R + 76}" cy="20" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" opacity="${o}"/>`).join("")
+    : `<path d="${wave(43, 51, 12)}" fill="#fff" opacity=".05"/><path d="${wave(59, 66, 13)}" fill="#000" opacity=".07"/><path d="${wave(77, 83, 12)}" fill="#000" opacity=".1"/>`) + `</g>`;
+  if (acc.has("stars")) a += `<g fill="#fff">` + [[18, 16], [30, 26], [44, 14], [58, 22], [70, 12], [24, 38], [64, 34], [50, 30], [12, 28], [78, 26], [8, 12], [36, 8], [86, 40], [54, 10]].map(([x, y], i) =>
+    `<circle class="s-tw" style="${ad((2.6 + (i % 4) * .7).toFixed(1), ((i % 5) * .4).toFixed(1))}" cx="${X(x)}" cy="${y}" r="${i % 3 ? .9 : 1.3}" opacity=".85"/>`).join("") + `</g>`;
+  if (acc.has("clouds")) a += `<g class="s-drift" style="${ad(9, 0)}">${sCloud(R + 62, 26, 1.15, .96)}</g><g class="s-drift" style="${ad(12, 1.3)}">${sCloud(R + 38, 34, .9, .85, "oklch(0.96 0.01 250)")}</g>`;
+  if (acc.has("fog")) a += `<g filter="url(#hcs-mist)">` + [[40, 36, 40, 5, "#fff", .16, 8, 0], [58, 52, 46, 7, "oklch(0.5 0.01 250)", .12, 11, .8], [44, 68, 44, 8, "#fff", .2, 9.5, 1.4]].map(([x, y, rx, ry, f, o, d, dl]) =>
+    `<ellipse class="s-mist" style="${ad(d, dl)}" cx="${X(x)}" cy="${y}" rx="${X(rx)}" ry="${ry}" fill="${f}" opacity="${o}"/>`).join("") + `</g>`;
+  if (acc.has("wind")) a += LEAVES.map(([x, y, s, col, d, dl]) => `<g transform="translate(${R + x} ${y})"><g class="s-leaf" style="${ad(d, dl)}"><g transform="scale(${s})"><path fill="${col}" d="M0,-3.4 C2.4,-1.8 2.4,1.8 0,3.6 C-2.4,1.8 -2.4,-1.8 0,-3.4 Z"/><path fill="none" stroke="rgb(0 0 0 / .25)" stroke-width=".4" d="M0,-2.8 L0,3.2"/></g></g></g>`).join("");
+  if (acc.has("rain") || acc.has("pour")) a += `<g stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".8">` + (acc.has("pour") ? [14, 26, 38, 50, 62, 74, 86, 20, 44, 68] : [22, 40, 58, 76, 32, 66]).map((x, i) =>
+    `<line class="s-fall" style="${ad((.7 + (i % 3) * .15).toFixed(2), ((i % 4) * .12).toFixed(2))}" x1="${R + x}" y1="52" x2="${R + x - 4}" y2="62"/>`).join("") + `</g>`;
+  if (acc.has("snow")) a += `<g fill="#fff" opacity=".95">` + [16, 30, 44, 58, 72, 24, 52, 66, 38, 80].map((x, i) =>
+    `<circle class="s-snow" style="${ad((3.6 + (i % 4) * .7).toFixed(1), ((i % 5) * .5).toFixed(1))}" cx="${R + x}" cy="50" r="${i % 2 ? 2.2 : 2.8}"/>`).join("") + `</g>`;
+  if (acc.has("hail")) a += `<g fill="#fff" opacity=".95">` + [20, 36, 52, 68, 84, 28, 60].map((x, i) =>
+    `<circle class="s-fall" style="${ad((.55 + (i % 2) * .1).toFixed(2), ((i % 3) * .1).toFixed(1))}" cx="${R + x}" cy="52" r="2.2"/>`).join("") + `</g>`;
+  if (acc.has("bolt")) a += `<path class="s-bolt" transform="translate(${R + 52} 48) scale(1.6)" d="M 2 -6 L -4 3 L 0 3 L -2 9 L 6 -1 L 1 -1 Z" fill="oklch(0.90 0.16 95)"/>`;
+  // the sun / moon in the top-right corner, where the disc had it
+  const cx = R + 78.5, cy = 22;
+  const sun = `<circle class="s-pulse" cx="${cx}" cy="${cy}" r="15.5" fill="url(#hcs-sun)" filter="url(#hcs-glow)"/>`;
+  const moon = `<g filter="url(#hcs-mglow)"><circle cx="${cx}" cy="${cy}" r="14" fill="url(#hcs-moon)"/></g><g fill="oklch(0.77 0.05 90 / 0.65)"><circle cx="${cx + 2}" cy="${cy - 4.2}" r="2.4"/><circle cx="${cx - 4.2}" cy="${cy + 3.1}" r="1.7"/><circle cx="${cx - 6.7}" cy="${cy - 1.7}" r="1"/><circle cx="${cx + 4.5}" cy="${cy + 1.7}" r="1.1"/></g><circle cx="${cx}" cy="${cy}" r="13.7" fill="none" stroke="oklch(0.90 0.05 90 / 0.28)" stroke-width=".8"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><rect width="${W}" height="${H}" fill="url(#hcs-f-${c})"/><rect width="${W}" height="${H}" fill="url(#hcs-g-${c})"/>${a}${body === "sun" ? sun : body === "moon" ? moon : ""}<rect width="${W}" height="${H}" fill="url(#hcs-gl)"/></svg>`;
+}
+
+/** render once in the panel root, outside anything that can be hidden */
+export const wxDefs = unsafeHTML(`<svg class="wxdefs" width="0" height="0" aria-hidden="true">${DEFS}<defs>${SCENE_DEFS}</defs></svg>`);
 
 /* =========================================================== cloud textures =========================================================== */
 const PAL = { light: [[255, 255, 255], [172, 183, 200]], grey: [[234, 237, 243], [124, 132, 147]], dark: [[192, 198, 210], [74, 80, 95]], storm: [[164, 154, 190], [48, 43, 68]] };
@@ -231,6 +307,25 @@ export const skyStyles = `
   @keyframes w-bolt{0%,76%,86%,100%{opacity:.35}78%,83%{opacity:1}}
   @keyframes w-fog{from{transform:translateX(-8px)}to{transform:translateX(8px)}}
   @keyframes w-wind{from{stroke-dashoffset:260}to{stroke-dashoffset:0}}
+  .wxs{position:absolute;inset:0;border-radius:inherit;overflow:hidden}
+  .wxs svg{width:100%;height:100%;display:block}
+  .wxs .s-waves{animation:s-waves 14s ease-in-out infinite}
+  .wxs .s-tw{animation:w-tw 3s ease-in-out infinite}
+  .wxs .s-drift{animation:s-drift 9s ease-in-out infinite}
+  .wxs .s-mist{animation:s-mist 9s ease-in-out infinite alternate}
+  .wxs .s-leaf{transform-origin:0 0;animation:s-leaf 6s linear infinite}
+  .wxs .s-fall{animation:s-fall .8s linear infinite}
+  .wxs .s-snow{animation:s-snow 4s linear infinite}
+  .wxs .s-bolt{animation:s-flash 3.2s ease-in-out infinite}
+  .wxs .s-pulse{transform-box:fill-box;transform-origin:center;animation:s-pulse 4.5s ease-in-out infinite}
+  @keyframes s-waves{0%,100%{transform:translateX(-2px)}50%{transform:translateX(2px)}}
+  @keyframes s-drift{0%,100%{transform:translateX(-2.5px)}50%{transform:translateX(2.5px)}}
+  @keyframes s-mist{from{transform:translateX(-6px)}to{transform:translateX(6px)}}
+  @keyframes s-leaf{0%{transform:translate(-22px,4px) rotate(0deg);opacity:0}12%{opacity:.9}50%{transform:translate(2px,-4px) rotate(180deg)}88%{opacity:.9}100%{transform:translate(26px,3px) rotate(360deg);opacity:0}}
+  @keyframes s-fall{from{transform:translateY(-14px)}to{transform:translateY(18px)}}
+  @keyframes s-snow{0%{transform:translate(-2.5px,-16px)}50%{transform:translate(2.5px,1px)}100%{transform:translate(-2.5px,18px)}}
+  @keyframes s-flash{0%,92%,100%{opacity:.25}94%,98%{opacity:1}}
+  @keyframes s-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
   :host(.still) .wxi *{animation:none!important}
 
   /* the sky: a tint per condition and the moving scene, slightly soft as if seen through the window */
@@ -295,7 +390,12 @@ export const skyStyles = `
 
   /* ===== weather card: big temperature with "voelt als", high / low + precipitation in the corner, tomorrow as a sentence ===== */
   .card.wxsky{grid-template-rows:max-content 1fr max-content max-content 12px max-content;grid-template-areas:"i c" ". ." "n n" "s s" ". ." "l l";text-shadow:0 1px 10px rgba(0,0,0,.18)}
-  :where(.card.wxsky)>*:not(.sky){position:relative;z-index:1}
+  :where(.card.wxsky)>*:not(.sky,.wbg){position:relative;z-index:1}
+  .card.wxsky .wbg{position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none}
+  .card.wxau .n{font-weight:700;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card.wxau .n em{font-style:normal;font-weight:900;filter:brightness(1.35)}
+  .card.wxsky:has(.wls) :is(.tnow,.n,.s,.snt){text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 14px rgba(0,0,0,.35)}
+  .card.wxsky:has(.wbg) .c.wxc{text-shadow:0 1px 3px rgba(0,0,0,.45),0 0 12px rgba(0,0,0,.35)}
   .card.wxsky .tnow{grid-area:i;display:flex;align-items:baseline;gap:10px;margin-left:-2px;white-space:nowrap;min-width:0}
   .card.wxsky .tnow b{font-size:56px;font-weight:600;letter-spacing:-2.8px;line-height:.8}
   .card.wxsky .tnow b sup{font-size:22px;letter-spacing:0;vertical-align:top;line-height:1;margin-left:1px;font-weight:500;color:var(--fg-2)}
