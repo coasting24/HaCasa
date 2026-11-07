@@ -6,7 +6,7 @@ import { classMap } from "lit/directives/class-map.js";
 import { t, tn, locale, hc } from "./i18n.js";
 import { domain, num, isOn, unavailable, relTime, sinceText, icon } from "./util.js";
 import { name, deviceName } from "./model.js";
-import { label, mediaView, condText, condIcon, condSvg, ico, cardCfg, lightCaps, dot } from "./cards.js";
+import { label, mediaView, condText, condIcon, condSvg, ico, cardCfg, lightCaps, dot, wxScene } from "./cards.js";
 import { liveTick } from "./cards2.js";
 import { energyFlow } from "./cards2.js";
 import { calendarBody, whenText } from "./calendar.js";
@@ -80,8 +80,8 @@ export function weatherPopup(p, pop, ui) {
     a.visibility != null ? { v: a.visibility, u: a.visibility_unit || "km", n: t("Zicht") } : null,
   ].filter(Boolean).slice(0, 6);
   const head = html`<div class="wxhd"><div><b>${Math.round(num(a.temperature) ?? 0)}°${dot()}${condText(w.state)}</b><span>${[feels != null ? t("Voelt als {v}", { v: Math.round(feels) + "°" }) : null, rainLine(rain) || null].filter(Boolean).map((x, i) => html`${i ? dot() : nothing}${x}`)}${pop.loading && !feels ? t("Laden…") : nothing}</span></div></div>`;
-  return ui.wrap(t("Weer"), html`<div class="skybg">${sky(p, w.state, "popup")}</div>${head}`, "", html`
-    ${rain ? html`<div class="prow" style="margin-top:4px"><span>${rain.minute ? t("Komende 2 uur") : t("Komende uren")}</span><b>mm/h</b></div>
+  return ui.wrap(t("Weer"), html`<div class="skybg">${wxScene(p, w, true)}</div>${head}`, "", html`
+    ${rain && rain.pts.some(v => v >= 0.1) ? html`<div class="prow" style="margin-top:4px"><span>${rain.minute ? t("Komende 2 uur") : t("Komende uren")}</span><b>mm/h</b></div>
       <div class="rain">${rain.pts.map((v, i) => { const at = hm(Date.now() + (i + .5) * rain.minutes / rain.pts.length * 60000); return html`<i class=${pop.rainSel === i ? "sel" : ""} style=${`height:${Math.max(4, v / rmax * 100)}%`} data-tip=${`${at} · ${fmt(v)} mm/h`} @click=${() => p.openPopup({ ...pop, rainSel: pop.rainSel === i ? undefined : i })}></i>`; })}</div>
       <div class="bars-x">${[0, .25, .5, .75, 1].map(f => html`<span>${f ? hm(Date.now() + f * rain.minutes * 60000) : t("nu")}</span>`)}</div>` : nothing}
     ${hourly.length ? html`<div class="prow"><span>${t("Per uur")}</span><b>${hourly.some(f => f.precipitation_probability != null) ? t("kans op neerslag") : ""}</b></div>

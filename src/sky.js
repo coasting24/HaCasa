@@ -417,6 +417,10 @@ export const skyStyles = `
   .popup.wxsky{position:relative}
   .popup.wxsky .skybg{position:absolute;left:0;right:0;top:0;height:240px;z-index:-1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%);mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%)}
   .popup.wxsky .skybg .sky{filter:blur(1.1px)}
+  .popup.wxsky .skybg .wbg{position:absolute;inset:0}
+  .popup.wxsky .skybg:has(.wls){-webkit-mask-image:linear-gradient(to bottom,#000 45%,rgba(0,0,0,.35) 68%,transparent 88%);mask-image:linear-gradient(to bottom,#000 45%,rgba(0,0,0,.35) 68%,transparent 88%)}
+  .popup.wxsky .skybg .wls svg{top:8px;bottom:auto;height:auto;aspect-ratio:160/100}   /* the whole scene, so no cloud is cut at the top edge; the land fades out under the headline */
+  .popup.wxsky .skybg .l-balloons{display:none}   /* they would drift right through the big headline */
   .popup.wxsky .wxhd b{font-size:44px}
   .popup .wxi{display:block;margin:6px auto}
   .popup .wd .wxi{margin:0 auto}

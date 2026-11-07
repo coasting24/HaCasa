@@ -155,9 +155,9 @@ export function phaseOf(sun) {
 }
 const CACHE = new Map();
 /** the landscape behind the weather card; tC in °C (only steps of 2° change the tint, so it is rebuilt rarely) */
-export function landscape(cond, phase, tC, moonPhase, still) {
-  const k = `${cond}|${phase}|${Math.round(tC / 2)}|${moonPhase}|${still}`;
-  if (!CACHE.has(k)) { if (CACHE.size > 40) CACHE.clear(); CACHE.set(k, unsafeHTML(build(cond, phase, Math.round(tC / 2) * 2, moonPhase, still))); }
+export function landscape(cond, phase, tC, moonPhase, still, ns = "hcl") {
+  const k = `${cond}|${phase}|${Math.round(tC / 2)}|${moonPhase}|${still}|${ns}`;   // ns: prefix of the SVG ids, so two scenes in one shadow root (card + popup) keep their own gradients
+  if (!CACHE.has(k)) { if (CACHE.size > 40) CACHE.clear(); const svg = build(cond, phase, Math.round(tC / 2) * 2, moonPhase, still); CACHE.set(k, unsafeHTML(ns === "hcl" ? svg : svg.replaceAll("hcl-", ns + "-"))); }
   return CACHE.get(k);
 }
 export const landscapeStyles = `

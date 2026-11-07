@@ -730,6 +730,14 @@ function tomorrowLine(f, short) {
     : snow ? t("Morgen {what} met {temp} en {chance} kans op sneeuw", { what }) : t("Morgen {what} met {temp} en {chance} kans op regen", { what });
   return s.split(/(\{temp\}|\{chance\})/).map(x => x === "{temp}" ? html`<b>${temp}°</b>` : x === "{chance}" ? html`<span class="pp">${snow ? FLAKE : DROP}${Math.round(pc)}%</span>` : x);
 }
+/** the sky behind the weather card, and the same one at the top of its popup (config.wxAnim: HaCasa's sky, Authentic Weather or the landscape) */
+export function wxScene(p, w, popup = false) {
+  const cfg = p.config || {}, night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night", moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
+  const temp = Math.round(num(w.attributes.temperature) ?? 0), tempC = /F/i.test(w.attributes.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
+  if (cfg.wxAnim === "landscape") return landscape(w.state, phaseOf(p.hass.states["sun.sun"]), tempC, moon, !motionOn(), popup ? "hclp" : "hcl");   // own ids in the popup: card and popup share one shadow root
+  if (cfg.wxAnim === "authentic") return html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact=${String(!popup)} moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>`;
+  return popup ? sky(p, w.state, "popup") : sky(p, w.state);
+}
 export function weatherCard(p, w) {
   const a = w.attributes, { today, tomorrow } = wxDays(p), feels = feelsLike(a), temp = Math.round(num(a.temperature) ?? 0);
   const hi = num(today?.temperature), lo = num(today?.templow), mm = num(today?.precipitation), pc = num(today?.precipitation_probability), snow = snowy(w.state) || snowy(today?.condition);
@@ -742,7 +750,7 @@ export function weatherCard(p, w) {
   const tempC = /F/i.test(a.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
   const au = cfg.wxText ? authenticText(w.state, night, tempC, cfg.wxText === "mild", cfg.wxTextLang || getLang()) : null;   // the one-liners may keep their English original while the panel speaks another language
   return html`<div class=${classMap({ card: true, wxsky: true, wxau: !!au })} ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
-    ${cfg.wxAnim === "landscape" ? landscape(w.state, phaseOf(p.hass.states["sun.sun"]), tempC, moon, !motionOn()) : cfg.wxAnim === "authentic" ? html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact="true" moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>` : sky(p, w.state)}
+    ${wxScene(p, w)}
     <div class="tnow"><b>${tw(String(temp))}<sup>°</sup></b>${feels != null ? html`<span>${t("voelt als {v}", { v: Math.round(feels) + "°" })}</span>` : nothing}</div>
     ${hi != null || rainBit !== nothing ? html`<div class="c wxc">${hi != null ? html`<span class="hl">${Math.round(hi)}°${lo != null ? html`<em>/${Math.round(lo)}°</em>` : nothing}</span>` : nothing}${rainBit}</div>` : nothing}
     ${au ? html`<div class="n">${au.pre}<em style=${`color:${au.color}`}>${au.word}</em>${au.post}</div><div class="s">${au.sub}</div>`
