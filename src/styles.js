@@ -307,6 +307,10 @@ export const styles = css`
   .card.media .ctl{left:var(--cp);right:var(--cp);bottom:var(--cp);width:auto;display:flex;gap:6px;grid-auto-rows:auto}
   .card.media .ctl button{flex:1;height:42px;background:rgba(255,255,255,.12);border:1px solid var(--line)}
   .card.media .ctl button.main{flex:1.6;background:rgba(255,255,255,.9);color:#1d1d1f;border-color:transparent}
+  /* appliance: maintenance due (WashData) in the bottom line, the program's progress as a thin bar along the bottom edge */
+  .card .lbl b.mt{font-weight:inherit;color:#ffb8a6}
+  .card .apbar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.14)}
+  .card .apbar i{display:block;height:100%;background:rgba(255,255,255,.85);transition:width .6s var(--ease)}
   .card.appart{background:linear-gradient(135deg,color-mix(in srgb,var(--app,#8a8f96) 70%,#1c1c1c) 0%,color-mix(in srgb,var(--app,#8a8f96) 30%,#1c1c1c) 100%)}
   /* light colour tint */
   .card.tinted .slider{background:rgba(255,255,255,.9)}

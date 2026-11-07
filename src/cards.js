@@ -472,19 +472,22 @@ export function applianceCard(p, a) {
   const opS = a.op ? p.hass.states[a.op.id] : null, prog = a.program ? p.hass.states[a.program.id] : null;
   const line = a.op ? applianceEnd(st) || (opS ? sinceText(opS.last_changed) : "") : a.switch ? html`${isOn(a.switch.state) ? t("Stekker aan") : t("Stekker uit")}${dot()}${sinceText(a.switch.state?.last_changed)}` : "";
   const progName = prog && !unavailable(prog) ? String(p.hass.formatEntityState?.(prog) ?? prog.state).split(".").pop().split("_program_").pop().replace(/_/g, " ").replace(/([a-z])([A-Z0-9])/g, "$1 $2") : "";   // Home Connect enums: Dishcare.Dishwasher.Program.Auto2 or dishcare_dishwasher_program_auto_2 -> Auto 2
-  const foot = [progName, st.progress != null ? `${Math.round(st.progress)}%` : "", st.power != null ? `${Math.round(st.power)} W` : "", a.door && p.hass.states[a.door.id]?.state === "open" ? t("Deur open") : ""].filter(Boolean);
+  const maint = a.maint && p.hass.states[a.maint.id]?.state === "on";   // WashData: descaling, filter … due
+  const bar = st.progress != null && ["running", "waiting"].includes(st.st) ? Math.max(0, Math.min(100, st.progress)) : null;   // the corner already says "50%" then
+  const foot = [/^(off|none|unknown)$/i.test(progName) ? "" : progName, maint ? html`<b class="mt">${t("Onderhoud nodig")}</b>` : "", st.progress != null && bar == null ? `${Math.round(st.progress)}%` : "", st.power != null ? `${Math.round(st.power)} W` : "", a.door && p.hass.states[a.door.id]?.state === "open" ? t("Deur open") : ""].filter(Boolean);
   const acts = [];
-  if (a.stop && !a.plain && ["running", "waiting"].includes(st.st)) acts.push({ icon: "mdi:stop", label: t("Stop"), run: () => p.call("button", "press", { entity_id: a.stop.id }) });
+  if (a.stop && !a.plain && !a.wd && ["running", "waiting"].includes(st.st)) acts.push({ icon: "mdi:stop", label: t("Stop"), run: () => p.call("button", "press", { entity_id: a.stop.id }) });
   const pw = a.switch && a.op && !unavailable(a.switch.state) ? guardPlug(p, [a.id, a.switch.id], title, isOn(a.switch.state), () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null;
   if (pw) acts.push({ icon: "mdi:power", label: isOn(a.switch.state) ? t("Uit") : t("Aan"), on: isOn(a.switch.state), run: pw });
   if (!a.op && a.power) return plugCard(p, a, st, title, cfg, acts);
   return html`<div class=${classMap({ card: true, appl: acts.length > 0, on: APPLIANCE_ACTIVE.includes(st.st), running: st.st === "running", unavailable: st.st === "unknown" })}
       ${pressDir(p, { tap: () => p.openPopup({ type: "appliance", a }), hold: () => p.openPopup({ type: "appliance", a }) })}>
     ${st.st === "unknown" ? ua() : nothing}
-    <div class="i">${uico(cfg.icon, applianceIcon(title))}</div>
+    <div class="i">${uico(cfg.icon, a.wd && opS?.attributes?.icon || applianceIcon(title))}</div>
     <div class="c">${st.label}</div>
     <div class="n">${title}</div><div class="s">${line || st.label}</div>
     ${foot.length ? html`<div class="lbl">${foot.map((x, i) => html`${i ? dot() : nothing}${x}`)}</div>` : nothing}
+    ${bar != null ? html`<div class="apbar"><i style="width:${bar.toFixed(1)}%"></i></div>` : nothing}
     ${acts.length ? html`<div class="ctl row" @click=${ev => ev.stopPropagation()}>${acts.map(x => html`<button class=${classMap({ on: !!x.on })} @click=${x.run}><ha-icon icon=${x.icon}></ha-icon>${x.label}</button>`)}</div>` : nothing}
   </div>`;
 }
@@ -734,7 +737,7 @@ export function weatherCard(p, w) {
   const night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night", cfg = p.config || {};
   const moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
   const tempC = /F/i.test(a.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
-  const au = cfg.wxText ? authenticText(w.state, night, tempC, cfg.wxText === "mild", getLang()) : null;
+  const au = cfg.wxText ? authenticText(w.state, night, tempC, cfg.wxText === "mild", cfg.wxTextLang || getLang()) : null;   // the one-liners may keep their English original while the panel speaks another language
   return html`<div class=${classMap({ card: true, wxsky: true, wxau: !!au })} ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
     ${cfg.wxAnim === "landscape" ? landscape(w.state, phaseOf(p.hass.states["sun.sun"]), tempC, moon, !motionOn()) : cfg.wxAnim === "authentic" ? html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact="true" moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>` : sky(p, w.state)}
     <div class="tnow"><b>${tw(String(temp))}<sup>°</sup></b>${feels != null ? html`<span>${t("voelt als {v}", { v: Math.round(feels) + "°" })}</span>` : nothing}</div>
