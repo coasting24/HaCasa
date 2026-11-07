@@ -36,7 +36,7 @@ function skyBg(v, phase, tC) {
   else if (phase === "dusk") L.push("linear-gradient(180deg, oklch(0.64 0.10 312 / 0.58) 0%, oklch(0.74 0.13 28 / 0.56) 52%, oklch(0.84 0.15 46 / 0.60) 100%)");
   if (warm > 0) L.push(`radial-gradient(125% 95% at 50% ${HZ}%, oklch(0.72 0.17 52 / ${warm.toFixed(3)}), transparent 62%)`);
   if (cool > 0) L.push(`linear-gradient(180deg, oklch(0.94 0.04 232 / ${cool.toFixed(3)}), transparent 58%)`);
-  const a = Math.round((v.alpha ?? 42) * .7);   // a little more see-through than the widget: the card glass and the room photo show
+  const a = Math.round((v.alpha ?? 42) * .45);   // much more see-through than the widget: the card's glass and the room photo carry the colour, as on every other card
   L.push(`radial-gradient(circle at 32% 24%, color-mix(in srgb, ${v.hi} ${a}%, transparent), color-mix(in srgb, ${v.lo} ${a}%, transparent))`);
   return L.join(", ");
 }
@@ -79,19 +79,21 @@ function moon(cx, cy, r, phase) {
   return `<g transform="translate(${cx} ${cy})" filter="url(#hcl-mglow)"><circle r="${r}" fill="oklch(0.52 0.03 285)"/>${full ? `<circle r="${r}" fill="url(#hcl-moon)"/>` : `<path d="${lit}" transform="${flip}" fill="url(#hcl-moon)"/>`}
     <circle r="${r - .3}" fill="none" stroke="oklch(0.90 0.05 90 / 0.28)" stroke-width=".5"/></g>`;
 }
-const cloud = (x, y, s, op, fill = "white") => `<g transform="translate(${x} ${y}) scale(${s})" opacity="${op}"><path d="M -13 4 a 7 7 0 0 1 1 -13.8 a 9 9 0 0 1 17 -2 a 7.5 7.5 0 0 1 8 4.5 a 6.5 6.5 0 0 1 -1.5 11.3 z" fill="${fill}"/></g>`;
+const cloud = (x, y, s, op, fill = "white") => `<g transform="translate(${x} ${y}) scale(${s})" opacity="${(op * .62).toFixed(2)}" filter="url(#hcl-soft)"><path d="M -13 4 a 7 7 0 0 1 1 -13.8 a 9 9 0 0 1 17 -2 a 7.5 7.5 0 0 1 8 4.5 a 6.5 6.5 0 0 1 -1.5 11.3 z" fill="${fill}"/></g>`;
 const tree = (x, y, h, fill) => `<path d="M${x} ${y - h} L${(x - h * .3).toFixed(1)} ${y} L${(x + h * .3).toFixed(1)} ${y} Z" fill="${fill}"/>`;
 const ad = (d, dl) => `animation-duration:${d}s;animation-delay:${dl}s`;
 /** precipitation scattered over the sky: columns × rows, alternate rows nudged sideways */
 const field = (cols, rows) => rows.flatMap((y, ri) => cols.map(x => [x + (ri % 2 ? 9 : 0), y]));
 
 function build(c, phase, tC, moonPhase, still) {
-  const night = phase === "night", v = visual(c, night), acc = new Set(v.acc), gr = ground(c, phase, acc.has("snow")).map(g => `color-mix(in srgb, ${g} 66%, ${v.lo})`);   // the land takes on the sky's colour, so both share one mood
+  const night = phase === "night", v = visual(c, night), acc = new Set(v.acc), gr = ground(c, phase, acc.has("snow")).map(g => `color-mix(in oklch, color-mix(in srgb, ${g} 66%, ${v.lo}) 55%, oklch(0.74 0.006 250))`);   // the land takes on the sky's colour (one mood) and is half greyed, so it sits quietly in the glass
   const [sx, sy, shi, slo] = SUN[phase] || SUN.day, SX = sx * W / 100, SY = sy * HZ / 100;   // sun in viewBox units
   let s = `<defs><radialGradient id="hcl-sun" cx="38%" cy="36%" r="70%"><stop offset="0" stop-color="${shi}"/><stop offset="1" stop-color="${slo}"/></radialGradient>
     <radialGradient id="hcl-moon" cx="38%" cy="34%" r="72%"><stop offset="0" stop-color="oklch(0.96 0.05 95)"/><stop offset="1" stop-color="oklch(0.84 0.06 90)"/></radialGradient>
     <radialGradient id="hcl-lamp"><stop offset="0" stop-color="rgba(255,214,140,.75)"/><stop offset="1" stop-color="rgba(255,214,140,0)"/></radialGradient>
     <linearGradient id="hcl-shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="rgba(40,25,10,.34)"/><stop offset=".24" stop-color="rgba(40,25,10,0)"/><stop offset=".76" stop-color="rgba(40,25,10,0)"/><stop offset="1" stop-color="rgba(40,25,10,.34)"/></linearGradient>
+    <clipPath id="hcl-sky"><path d="M0 0 H${W} V65 C 93 70, 40 66, 0 73 Z"/></clipPath>
+    <filter id="hcl-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation=".45"/></filter>
     <filter id="hcl-mist" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.6"/></filter>
     <filter id="hcl-mglow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="oklch(0.90 0.09 95)" flood-opacity=".6"/></filter>
     ${(phase === "day" ? DAY_BALLOONS : [0, 1, 2].map(() => MOOD_BALLOON[phase])).map(([l, d], i) => stripes(`hcl-b${i}`, l, d)).join("")}</defs>`;
@@ -104,8 +106,11 @@ function build(c, phase, tC, moonPhase, still) {
   if (acc.has("stars")) s += `<g fill="#fff">` + [[10, 10], [22, 22], [34, 8], [48, 16], [60, 6], [18, 34], [70, 26], [84, 12], [96, 30], [108, 8], [122, 20], [136, 10], [148, 28], [8, 44], [130, 40], [56, 38]].map(([x, y], i) =>
     `<circle class="s-tw" style="${ad((2.6 + (i % 4) * .7).toFixed(1), ((i % 5) * .4).toFixed(1))}" cx="${x}" cy="${y}" r="${i % 3 ? .55 : .8}" opacity=".85"/>`).join("") + `</g>`;
   // the sun or moon, drawn before the hills so it sets behind them
+  // the land is see-through now, so the sky is clipped at the far ridge: a low sun or moon must not shine through the hills
+  if (v.body) s += `<g clip-path="url(#hcl-sky)">`;
   if (v.body === "sun") s += `<circle class="s-pulse" cx="${SX}" cy="${SY}" r="11" fill="url(#hcl-sun)" style="filter:drop-shadow(0 0 4px ${slo})"/>`;
   if (v.body === "moon") s += moon(SX, SY, 9.5, moonPhase);
+  if (v.body) s += `</g>`;
   // clouds: around the sun's spot on a fair day, spread over the sky otherwise
   const cx = v.body ? Math.max(SX, 70) : 100;   // keep the clouds off the temperature in the top-left corner
   if (acc.has("clouds")) {
@@ -118,7 +123,7 @@ function build(c, phase, tC, moonPhase, still) {
     `<g transform="translate(${x} ${y})"><g class="s-leaf" style="${ad(d, dl)}"><g transform="scale(${k})"><path fill="${col}" d="M0,-3.4 C2.4,-1.8 2.4,1.8 0,3.6 C-2.4,1.8 -2.4,-1.8 0,-3.4 Z"/><path fill="none" stroke="rgb(0 0 0 / .25)" stroke-width=".4" d="M0,-2.8 L0,3.2"/></g></g></g>`).join("");
   if (acc.has("lightning")) s += `<path class="s-bolt" transform="translate(${cx + 6} 40) scale(1.5)" d="M 2 -6 L -4 3 L 0 3 L -2 9 L 6 -1 L 1 -1 Z" fill="oklch(0.90 0.16 95)"/>`;
   // land: the far ridge is the horizon; ridges recede from light (far) to dark (near), each with a few conifers
-  s += `<g class="l-land" opacity=".7"><path d="M0 73 C 40 66, 93 70, ${W} 65 L${W} ${H} L0 ${H} Z" fill="${gr[0]}"/>`;
+  s += `<g class="l-land" opacity=".55"><path d="M0 73 C 40 66, 93 70, ${W} 65 L${W} ${H} L0 ${H} Z" fill="${gr[0]}"/>`;
   if (acc.has("snow")) s += `<g transform="translate(123 69.5) scale(1.3)"><circle cy="-2" r="3.3" fill="#fff"/><circle cy="-6.6" r="2.4" fill="#fff"/><circle cy="-10" r="1.7" fill="#fff"/>
     <ellipse cx="1.3" cy="-2" rx="1.1" ry="2.8" fill="rgba(140,160,190,.28)"/><path d="M -1.6 -8.4 Q 0 -7.6 1.6 -8.4 L 1.4 -7.4 Q 0 -6.7 -1.4 -7.4 Z" fill="#e0604a"/>
     <circle cx="-.6" cy="-10.4" r=".28" fill="#333"/><circle cx=".6" cy="-10.4" r=".28" fill="#333"/><path d="M 0 -10 L 1.7 -9.7 L 0 -9.4 Z" fill="#e8934a"/></g>`;
@@ -128,7 +133,7 @@ function build(c, phase, tC, moonPhase, still) {
   s += `<path d="M0 95 C 53 91, 107 97, ${W} 93 L${W} ${H} L0 ${H} Z" fill="${gr[3]}"/>` + [[29, 96, 10], [85, 97.5, 11], [133, 95.5, 9]].map(([x, y, h]) => tree(x, y, h, gr[4])).join("");
   s += `</g>`;
   // balloons drift across in fair weather (only while things move)
-  if (!still && ["sunny", "partlycloudy", "clear-night"].includes(c)) s += `<g class="l-balloons">${balloon("hcl-b0", 10, 6, 75, -50)}${balloon("hcl-b1", 22, 9, 60, -12)}${balloon("hcl-b2", 38, 14, 48, -30)}</g>`;
+  if (!still && ["sunny", "partlycloudy", "clear-night"].includes(c)) s += `<g class="l-balloons" opacity=".7">${balloon("hcl-b0", 10, 6, 75, -50)}${balloon("hcl-b1", 22, 9, 60, -12)}${balloon("hcl-b2", 38, 14, 48, -30)}</g>`;
   // precipitation over the sky down to the horizon
   if (acc.has("rain") || acc.has("rainHeavy")) s += `<g stroke="${night ? "oklch(0.8 0.02 250 / 0.6)" : "#fff"}" stroke-width=".8" stroke-linecap="round" opacity=".7">` +
     field(acc.has("rainHeavy") ? [6, 22, 38, 54, 70, 86, 102, 118, 134, 150] : [12, 34, 56, 78, 100, 122, 144], [20, 36, 52]).map(([x, y], i) =>
