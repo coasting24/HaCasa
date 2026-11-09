@@ -27,6 +27,10 @@ import { deviceName } from "./model.js";
 import { BASE, TAG, icon, slug, isOn, unavailable, isDown, comfort, humidityText, greeting, clock, relTime, navigate, num, sinceText } from "./util.js";
 import { ghost, tw, afterRender, setMotion } from "./motion.js";
 
+/** the address of each overview page and the settings: English, like HA's own (/config/system); the keys stay the panel's Dutch ids */
+const PAGE_URL = { automatiseringen: "automations", sensoren: "sensors", energie: "energy", cameras: "cameras", systeem: "system", instellingen: "settings" };
+const PAGE_KEY = Object.fromEntries(Object.entries(PAGE_URL).map(([k, v]) => [v, k]));
+
 /** numbers with their unit (6,8 kWh · 50% · 12 min · 14:02) rendered white inside a notice */
 const emph = text => { const parts = String(text ?? "").split(/(\d+(?:[.,:]\d+)?(?:\s?(?:%|kWh|W|kW|°C?|min|uur|u|×))?)/g); return parts.map((x, i) => i % 2 ? html`<b>${x}</b>` : x); };
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -162,7 +166,7 @@ class HacasaNova extends LitElement {
       } catch (e) { set(x.id, null, { err: e?.message || "error" }); }
     }
   }
-  get settingsPath() { return `${this.basePath()}/instellingen`; }
+  get settingsPath() { return `${this.basePath()}/${PAGE_URL.instellingen}`; }
   async saveSettings() { if (this.notLoaded()) return; try { await saveUserConfig(this.hass, this.draft); } catch (e) { console.warn("[hacasa-nova] save failed", e); this.showToast(t("Opslaan mislukt")); return; } this.userConfig = this.draft; this.applyConfig(); this.saved = true; setTimeout(() => this.saved = false, 2500); this.showToast(t("Instellingen opgeslagen"), 2500, "ok"); }
   /** back to the defaults (a config.json next to the panel is imported again on the next load) */
   async resetSettings() { await saveUserConfig(this.hass, null); this.userConfig = null; this.applyConfig(); this.draft = mergeConfig(DEFAULT_CONFIG, this.cardConfig); }
@@ -184,8 +188,9 @@ class HacasaNova extends LitElement {
     if (this.home.calendars.length && (!this._eventsAt || Date.now() - this._eventsAt > 10 * 60000)) this.loadEvents();
     if (this.home.weather && (!this._wxAt || Date.now() - this._wxAt > 30 * 60000 || this._wxId !== this.home.weather.entity_id)) this.loadWx();
     const seg = (this.route?.path || "/").split("/").filter(Boolean)[0];
-    this.settings = seg === "instellingen";
-    this.page = PAGES[seg] ? seg : null;
+    const pk = PAGE_KEY[seg] || seg;   // English addresses; the old Dutch ones (bookmarks, wall tablets) still open
+    this.settings = pk === "instellingen";
+    this.page = PAGES[pk] ? pk : null;
     // a draft made before the user settings arrived (settings opened by reload) is rebuilt once they do, so Save never writes defaults over them
     if (this.settings && (!this.draft || (this._draftEarly && this.userConfig !== undefined))) { this.draft = JSON.parse(JSON.stringify(this.config)); this._draftEarly = this.userConfig === undefined; }
     if (!this.settings) this.draft = null;
@@ -221,7 +226,7 @@ class HacasaNova extends LitElement {
   goPath(path) {
     this.popup = null; this.drawer = false;
     const m = /^__(\w+)__$/.exec(path || "");
-    if (m) this.nav(`${this.basePath()}/${m[1] === "settings" ? "instellingen" : m[1]}`); else navigate(path);
+    if (m) this.nav(`${this.basePath()}/${PAGE_URL[m[1] === "settings" ? "instellingen" : m[1]] || m[1]}`); else navigate(path);
   }
   /** make this panel the page HA opens first (per browser; HA stores it in localStorage) */
   get isDefault() { return this.hass?.userData?.default_panel === this.basePath().slice(1); }

@@ -1,6 +1,6 @@
 // Numeric history + sparklines (network card), battery ETA, modes (guest/vacation) and the camera motion timeline.
 import { html, nothing, svg } from "lit";
-import { t } from "./i18n.js";
+import { t, locale } from "./i18n.js";
 import { domain, num, isOn } from "./util.js";
 import { pressDir, ico } from "./cards.js";
 
@@ -28,7 +28,7 @@ export function netCard(p, inS, outS) {
   const ids = [inS, outS].filter(Boolean).map(s => s.entity_id);
   if (ids.length && (p._netKey !== ids.join() || !p._netAt || Date.now() - p._netAt > 60000)) p.loadNetHist(ids);
   const hist = p.netHist || {};
-  const val = s => s ? `${s.state} ${s.attributes.unit_of_measurement || ""}` : "–";
+  const val = s => s ? `${isNaN(parseFloat(s.state)) ? s.state : (+s.state).toLocaleString(locale(), { maximumFractionDigits: 1 })} ${s.attributes.unit_of_measurement || ""}` : "–";
   return html`<div class="card net" ${pressDir(p, { tap: () => p.moreInfo((inS || outS).entity_id) })}>
     <div class="lines">${sparkLines([inS && hist[inS.entity_id], outS && hist[outS.entity_id]])}</div>
     <div class="n">${t("Netwerk")}</div>

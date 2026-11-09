@@ -111,16 +111,16 @@ function energy(p) {
 
 /* ---------- system: processor, memory, disk, network tiles; Home Assistant, host and offline blocks ---------- */
 function system(p) {
-  const st = p.hass.states, hc = p.hass.config || {}, more = id => () => p.moreInfo(id);
+  const st = p.hass.states, haCfg = p.hass.config || {}, more = id => () => p.moreInfo(id);
   const S = Object.values(st).filter(s => domain(s.entity_id) === "sensor" && !unavailable(s));
   const pick = re => S.filter(s => re.test(s.entity_id) || re.test(s.attributes.friendly_name || ""));
-  const pct = s => s.attributes.unit_of_measurement === "%", val = s => `${s.state}${s.attributes.unit_of_measurement ? " " + s.attributes.unit_of_measurement : ""}`;
+  const pct = s => s.attributes.unit_of_measurement === "%", val = s => `${num(s.state) != null ? fmt(num(s.state)) : s.state}${s.attributes.unit_of_measurement ? " " + s.attributes.unit_of_measurement : ""}`;   // rounded: routers report 534.642254102325 KiB/s
   const cpu = pick(/processor_use|cpu_percent|processor|cpu/i).filter(pct), temp = pick(/processor_temp|cpu_temp/i), load = pick(/load_1m|load_5m/i);
   const mem = pick(/memory_use_percent|memory_percent/i).filter(pct), memU = pick(/memory_use$|memory_used/i).filter(s => !pct(s)), swap = pick(/swap_use_percent|swap_percent/i);
   const disk = pick(/disk_use_percent|disk_percent/i).filter(pct), diskU = pick(/disk_use$|disk_used/i).filter(s => !pct(s)), diskF = pick(/disk_free/i);
-  const net = S.filter(s => s.attributes.device_class === "data_rate" || /throughput|network_in|network_out|download|upload|packets/i.test(s.entity_id));
+  const net = S.filter(s => num(s.state) != null && (s.attributes.device_class === "data_rate" || /throughput|network_in|network_out|download|upload|packets/i.test(s.entity_id)));   // numbers only: "openplantbook_upload_status" is not a network
   const { inS, outS } = pickNet(net); const ids = [inS, outS].filter(Boolean).map(s => s.entity_id); if (ids.length && (p._netKey !== ids.join() || Date.now() - (p._netAt || 0) > 60000)) p.loadNetHist(ids);
-  const boot = st["sensor.last_boot"] || st["sensor.uptime"] || S.find(s => /last_boot|uptime/i.test(s.entity_id));
+  const boot = [st["sensor.last_boot"], st["sensor.uptime"], ...S.filter(s => /last_boot|uptime/i.test(s.entity_id))].find(s => s && s.attributes.device_class === "timestamp" && !isNaN(new Date(s.state)));   // a point in time only: a device's uptime in seconds (an Awtrix clock) is not the server's boot
   const autos = Object.values(st).filter(s => domain(s.entity_id) === "automation");
   if (p.sysInfo === undefined) p.loadSystem();
   const info = p.sysInfo || {}, host = info.host?.hostname ? info.host : null, core = info.core?.version ? info.core : null;
@@ -132,7 +132,7 @@ function system(p) {
     inS || outS ? kpi({ icon: "mdi:swap-vertical", svg: "swap", em: t("Netwerk"), v: val(inS || outS), n: [inS && `↓ ${val(inS)}`, outS && `↑ ${val(outS)}`].filter(Boolean).join(" · "), spark: p.netHist?.[(inS || outS).entity_id], tap: more((inS || outS).entity_id) }) : null,
   ].filter(Boolean);
   const ha = [
-    srow({ icon: "mdi:home-assistant", svg: "home", name: `Home Assistant ${hc.version || core?.version || "?"}`, sub: core?.update_available ? t("Kernupdate beschikbaar") : (hc.location_name || ""), pill: core?.update_available ? t("Update") : "OK", on: !!core?.update_available, tap: () => p.goPath("/config/info") }),
+    srow({ icon: "mdi:home-assistant", svg: "home", name: `Home Assistant ${haCfg.version || core?.version || "?"}`, sub: core?.update_available ? t("Kernupdate beschikbaar") : (haCfg.location_name || ""), pill: core?.update_available ? t("Update") : "OK", on: !!core?.update_available, tap: () => p.goPath("/config/info") }),
     boot ? srow({ icon: "mdi:timer-outline", svg: "timer", name: t("Draait sinds"), sub: new Date(boot.state).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", ...hc() }), val: relTime(boot.state), tap: more(boot.entity_id) }) : null,
     srow({ icon: "mdi:shape-outline", svg: "shapes", name: t("Entiteiten"), sub: `${Object.keys(p.hass.devices || {}).length} ${t("apparaten")} · ${Object.keys(p.hass.areas || {}).length} ${t("ruimtes")}`, val: fmt(Object.keys(st).length, 0), tap: () => p.goPath("/config/entities") }),
     srow({ icon: "mdi:robot-outline", svg: "robot", name: t("Automatiseringen"), sub: autos.filter(unavailable).length ? t("{n} met fouten", { n: autos.filter(unavailable).length }) : t("Aan"), val: `${autos.filter(a => a.state === "on").length} / ${autos.length}`, tap: () => p.goPath("__automatiseringen__") }),
@@ -147,7 +147,7 @@ function system(p) {
       ${!kpis.length ? html`<div class="hint" style="margin-top:20px;opacity:.75;font-size:13px">${t("Geen systeemsensoren gevonden. Voeg de integratie System Monitor toe voor processor, geheugen, schijf en netwerk.")}</div>` : nothing}
       ${!p.hass.user?.is_admin ? html`<div class="hint" style="margin-top:12px;opacity:.75;font-size:13px">${t("Host- en kerngegevens komen van de Supervisor en zijn alleen voor beheerders zichtbaar.")}</div>` : nothing}
       <div class="sblks">
-        ${sblock("Home Assistant", ha, hc.version || "")}
+        ${sblock("Home Assistant", ha, haCfg.version || "")}
         ${sblock(t("Host"), hostRows, `${updates.length} ${t("updates")}`)}
         ${sblock(t("Onbereikbaar"), offline.map(({ e, r }) => srow({ icon: "mdi:lan-disconnect", svg: "network_off", name: name(p.hass, e), sub: `${r.name} · ${t("sinds {t}", { t: relTime(e.state?.last_changed) })}`, pill: t("Offline"), dim: true, tap: more(e.id) })), `${offline.length}`)}
       </div>` };
