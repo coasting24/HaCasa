@@ -40,8 +40,8 @@ function skyBg(v, phase, tC) {
   L.push(`radial-gradient(circle at 32% 24%, color-mix(in srgb, ${v.hi} ${a}%, transparent), color-mix(in srgb, ${v.lo} ${a}%, transparent))`);
   return L.join(", ");
 }
-/** sun by time of day (x, y in % of the sky): low left at dawn, high on the right by day (where the moon stands at night, off the centre), low right at dusk, warmer near the horizon */
-const SUN = { dawn: [26, 93, "oklch(0.90 0.13 58)", "oklch(0.73 0.19 34)"], dusk: [78, 94, "oklch(0.86 0.15 46)", "oklch(0.65 0.20 27)"], day: [74, 22, "oklch(0.94 0.14 92)", "oklch(0.82 0.18 68)"], night: [74, 22] };
+/** sun by time of day (x, y in % of the sky): low left at dawn, high on the right by day (where the moon stands at night), low right at dusk, warmer near the horizon */
+const SUN = { dawn: [26, 93, "oklch(0.90 0.13 58)", "oklch(0.73 0.19 34)"], dusk: [78, 94, "oklch(0.86 0.15 46)", "oklch(0.65 0.20 27)"], day: [74, 30, "oklch(0.94 0.14 92)", "oklch(0.82 0.18 68)"], night: [74, 30] };   // high on the right; low enough that a wide, flat card (its top is cropped) still shows it whole
 /** land tones, far ridge → near (a … e): snow covers it; dawn / dusk / night follow the mood; by day it takes the weather */
 function ground(c, phase, snow) {
   const g = (...l) => l.map(x => `oklch(${x})`);
@@ -92,6 +92,8 @@ function build(c, phase, tC, moonPhase, still) {
     <radialGradient id="hcl-moon" cx="38%" cy="34%" r="72%"><stop offset="0" stop-color="oklch(0.96 0.05 95)"/><stop offset="1" stop-color="oklch(0.84 0.06 90)"/></radialGradient>
     <radialGradient id="hcl-lamp"><stop offset="0" stop-color="rgba(255,214,140,.75)"/><stop offset="1" stop-color="rgba(255,214,140,0)"/></radialGradient>
     <linearGradient id="hcl-shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="rgba(40,25,10,.34)"/><stop offset=".24" stop-color="rgba(40,25,10,0)"/><stop offset=".76" stop-color="rgba(40,25,10,0)"/><stop offset="1" stop-color="rgba(40,25,10,.34)"/></linearGradient>
+    <radialGradient id="hcl-textg" cx="0" cy="0" r="1"><stop offset=".55" stop-color="#000"/><stop offset="1" stop-color="#fff"/></radialGradient>
+    <mask id="hcl-text" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#fff"/><rect x="0" y="0" width="80" height="62" fill="url(#hcl-textg)"/></mask>
     <clipPath id="hcl-sky"><path d="M0 0 H${W} V65 C 93 70, 40 66, 0 73 Z"/></clipPath>
     <filter id="hcl-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation=".45"/></filter>
     <filter id="hcl-mist" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.6"/></filter>
@@ -103,6 +105,8 @@ function build(c, phase, tC, moonPhase, still) {
     ? (c === "sunny" ? [[32, 16, "#fff", .05], [60, 19, "#000", .05], [88, 22, "#000", .07], [120, 26, "#fff", .04]] : [[24, 12, "#fff", .05], [42, 13, "#000", .06], [62, 15, "#fff", .05], [84, 19, "#000", .05], [110, 22, "#fff", .04]])
       .map(([r, w, col, o]) => `<circle cx="${SX}" cy="${SY}" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" opacity="${o}"/>`).join("")
     : `<path d="${bands(31, 37, 9)}" fill="#fff" opacity=".05"/><path d="${bands(43, 48, 9)}" fill="#000" opacity=".07"/><path d="${bands(55, 60, 9)}" fill="#000" opacity=".1"/>`) + `</g>`;
+  // everything in the sky ends at the far ridge: the land is see-through, so nothing may show through the hills
+  s += `<g clip-path="url(#hcl-sky)">`;
   if (acc.has("stars")) s += `<g fill="#fff">` + [[10, 10], [22, 22], [34, 8], [48, 16], [60, 6], [18, 34], [70, 26], [84, 12], [96, 30], [108, 8], [122, 20], [136, 10], [148, 28], [8, 44], [130, 40], [56, 38]].map(([x, y], i) =>
     `<circle class="s-tw" style="${ad((2.6 + (i % 4) * .7).toFixed(1), ((i % 5) * .4).toFixed(1))}" cx="${x}" cy="${y}" r="${i % 3 ? .55 : .8}" opacity=".85"/>`).join("") + `</g>`;
   // the sun or moon, drawn before the hills so it sets behind them
@@ -114,7 +118,7 @@ function build(c, phase, tC, moonPhase, still) {
   // clouds: around the sun's spot on a fair day, spread over the sky otherwise
   const cx = v.body ? Math.max(SX, 70) : 100;   // keep the clouds off the temperature in the top-left corner
   if (acc.has("clouds")) {
-    if (c !== "partlycloudy") s += `<g class="s-drift" style="${ad(9, 0)}">${cloud(cx + 18, 22, 1.05, .96)}</g><g class="s-drift" style="${ad(11, .6)}">${cloud(cx - 26, 13, .75, .8, "oklch(0.96 0.01 250)")}</g>`;
+    if (c !== "partlycloudy") s += `<g class="s-drift" style="${ad(9, 0)}">${cloud(cx + 18, 25, 1.05, .96)}</g><g class="s-drift" style="${ad(11, .6)}">${cloud(cx - 26, 22, .75, .8, "oklch(0.96 0.01 250)")}</g>`;   // low enough that a wide, flat card (its top is cropped) still shows them whole
     s += `<g class="s-drift" style="${ad(12, 1.3)}">${cloud(cx + 28, 34, .85, .88, "oklch(0.96 0.01 250)")}</g>`;
   }
   if (acc.has("fog")) s += `<g filter="url(#hcl-mist)">` + [[60, 30, 64, 4, "#fff", .16, 8, 0], [96, 44, 72, 5, "oklch(0.5 0.01 250)", .12, 11, .8], [70, 58, 70, 6, "#fff", .2, 9.5, 1.4]].map(([x, y, rx, ry, f, o, d, dl]) =>
@@ -122,6 +126,7 @@ function build(c, phase, tC, moonPhase, still) {
   if (acc.has("wind")) s += [[40, 20, 1.1, "oklch(0.66 0.15 138)", 5.2, 0], [70, 34, .9, "oklch(0.71 0.15 78)", 6.4, 1.1], [56, 48, 1.2, "oklch(0.58 0.13 52)", 5.8, 2.3], [100, 26, .8, "oklch(0.68 0.16 128)", 7, .6], [120, 52, 1, "oklch(0.73 0.15 85)", 6, 3]].map(([x, y, k, col, d, dl]) =>
     `<g transform="translate(${x} ${y})"><g class="s-leaf" style="${ad(d, dl)}"><g transform="scale(${k})"><path fill="${col}" d="M0,-3.4 C2.4,-1.8 2.4,1.8 0,3.6 C-2.4,1.8 -2.4,-1.8 0,-3.4 Z"/><path fill="none" stroke="rgb(0 0 0 / .25)" stroke-width=".4" d="M0,-2.8 L0,3.2"/></g></g></g>`).join("");
   if (acc.has("lightning")) s += `<path class="s-bolt" transform="translate(${cx + 6} 40) scale(1.5)" d="M 2 -6 L -4 3 L 0 3 L -2 9 L 6 -1 L 1 -1 Z" fill="oklch(0.90 0.16 95)"/>`;
+  s += `</g>`;
   // land: the far ridge is the horizon; ridges recede from light (far) to dark (near), each with a few conifers
   s += `<g class="l-land" opacity=".55"><path d="M0 73 C 40 66, 93 70, ${W} 65 L${W} ${H} L0 ${H} Z" fill="${gr[0]}"/>`;
   if (acc.has("snow")) s += `<g transform="translate(123 69.5) scale(1.3)"><circle cy="-2" r="3.3" fill="#fff"/><circle cy="-6.6" r="2.4" fill="#fff"/><circle cy="-10" r="1.7" fill="#fff"/>
@@ -133,8 +138,9 @@ function build(c, phase, tC, moonPhase, still) {
   s += `<path d="M0 95 C 53 91, 107 97, ${W} 93 L${W} ${H} L0 ${H} Z" fill="${gr[3]}"/>` + [[29, 96, 10], [85, 97.5, 11], [133, 95.5, 9]].map(([x, y, h]) => tree(x, y, h, gr[4])).join("");
   s += `</g>`;
   // balloons drift across in fair weather (only while things move)
-  if (!still && ["sunny", "partlycloudy", "clear-night"].includes(c)) s += `<g class="l-balloons" opacity=".7">${balloon("hcl-b0", 10, 6, 75, -50)}${balloon("hcl-b1", 22, 9, 60, -12)}${balloon("hcl-b2", 38, 14, 48, -30)}</g>`;
+  if (!still && ["sunny", "partlycloudy", "clear-night"].includes(c)) s += `<g class="l-balloons" opacity=".7" clip-path="url(#hcl-sky)" mask="url(#hcl-text)">${balloon("hcl-b0", 10, 6, 75, -50)}${balloon("hcl-b1", 22, 9, 60, -12)}${balloon("hcl-b2", 38, 14, 48, -30)}</g>`;
   // precipitation over the sky down to the horizon
+  s += `<g clip-path="url(#hcl-sky)">`;
   if (acc.has("rain") || acc.has("rainHeavy")) s += `<g stroke="${night ? "oklch(0.8 0.02 250 / 0.6)" : "#fff"}" stroke-width=".8" stroke-linecap="round" opacity=".7">` +
     field(acc.has("rainHeavy") ? [6, 22, 38, 54, 70, 86, 102, 118, 134, 150] : [12, 34, 56, 78, 100, 122, 144], [20, 36, 52]).map(([x, y], i) =>
       `<line class="l-fall" style="${ad((.7 + (i % 3) * .15).toFixed(2), ((i % 5) * .12).toFixed(2))}" x1="${x}" y1="${y}" x2="${x - 3}" y2="${y + 9}"/>`).join("") + `</g>`;
@@ -142,6 +148,7 @@ function build(c, phase, tC, moonPhase, still) {
     `<circle class="l-snow" style="${ad((3.4 + (i % 4) * .7).toFixed(1), ((i % 5) * .5).toFixed(1))}" cx="${x}" cy="${y}" r="${i % 2 ? .9 : 1.25}"/>`).join("") + `</g>`;
   if (acc.has("hail")) s += `<g fill="#fff" opacity=".95">` + field([14, 38, 62, 86, 110, 134], [22, 40, 56]).map(([x, y], i) =>
     `<circle class="l-fall" style="${ad((.55 + (i % 2) * .1).toFixed(2), ((i % 3) * .1).toFixed(1))}" cx="${x}" cy="${y}" r="1.2"/>`).join("") + `</g>`;
+  s += `</g>`;
   return `<div class="wbg wls" style="background:${skyBg(v, phase, tC)}"><div class="wls-glow" style="background:radial-gradient(120% 60% at ${sx}% ${(sy * HZ / 100).toFixed(0)}%, ${v.glow}, transparent 62%)"></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true">${s}</svg></div>`;
 }
 

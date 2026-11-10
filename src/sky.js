@@ -413,6 +413,9 @@ export const skyStyles = `
   .card.wxsky .snt .pp{color:#a9d3ff;font-weight:700;white-space:nowrap}
   .card.wxsky .snt .pp svg{display:inline-block;vertical-align:-.08em;margin-right:2px}
   .card.wxsky .snt .sh{display:none}
+  /* landscape: the sun and moon stand top right, so the high / low and the rain go under the temperature */
+  .card.wxsky:has(.wls){grid-template-rows:max-content max-content 1fr max-content max-content 12px max-content;grid-template-areas:"i i" "c c" ". ." "n n" "s s" ". ." "l l"}
+  .card.wxsky:has(.wls) .c.wxc{grid-area:c;position:relative;top:auto;right:auto;height:auto;max-width:none;flex-direction:row;align-items:center;justify-content:flex-start;justify-self:start;text-align:left;gap:10px;margin-top:10px}
   /* the weather popup: the header is the same sky, fading into the popup */
   .popup.wxsky{position:relative}
   .popup.wxsky .skybg{position:absolute;left:0;right:0;top:0;height:240px;z-index:-1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%);mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%)}
@@ -421,6 +424,8 @@ export const skyStyles = `
   .popup.wxsky .skybg:has(.wls){-webkit-mask-image:linear-gradient(to bottom,#000 45%,rgba(0,0,0,.35) 68%,transparent 88%);mask-image:linear-gradient(to bottom,#000 45%,rgba(0,0,0,.35) 68%,transparent 88%)}
   .popup.wxsky .skybg .wls svg{top:8px;bottom:auto;height:auto;aspect-ratio:160/100}   /* the whole scene, so no cloud is cut at the top edge; the land fades out under the headline */
   .popup.wxsky .skybg .l-balloons{display:none}   /* they would drift right through the big headline */
+  .popup .skybg{pointer-events:none}   /* never in the way of the header buttons, whatever the popup */
+  .popup.cardf .skybg{display:none}   /* the card settings of the weather card: a form, no sky over its fields */
   .popup.wxsky .wxhd b{font-size:44px}
   .popup .wxi{display:block;margin:6px auto}
   .popup .wd .wxi{margin:0 auto}
@@ -435,6 +440,8 @@ export const skyStyles = `
     .card.wxsky .snt{padding-top:6px;font-size:10px;line-height:1.3}
     .card.wxsky .snt .lg{display:none}
     .card.wxsky .snt .sh{display:inline}
+    .card.wxsky:has(.wls){grid-template-rows:max-content max-content 1fr max-content 0 6px max-content}
+    .card.wxsky:has(.wls) .c.wxc{gap:6px;margin-top:5px}
     .sky{filter:blur(.8px)}
     .sky .sk-o{display:none}
     .card .sky.k-sun::before,.card .sky.k-partly::before,.card .sky.k-night::before{width:124px;height:124px;right:-48px;top:-54px}

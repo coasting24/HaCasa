@@ -7,6 +7,12 @@
 <!-- Home Assistant provides <ha-icon>; outside HA we shim it with iconify's mdi set. -->
 <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.1.0/dist/iconify-icon.min.js"></script>
 <style>html,body{margin:0;height:100%;background:#222}</style>
+<script>
+  // dev only: a failed start in a browser without a console at hand (iPad simulator, headless Firefox) shows its error on the page
+  const showErr = m => { const d = document.createElement("pre"); d.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;margin:0;padding:12px;background:#600;color:#fff;font:12px/1.4 monospace;white-space:pre-wrap"; d.textContent = m; document.documentElement.append(d); };
+  addEventListener("error", e => showErr(`${e.message}\n${e.filename}:${e.lineno}`));
+  addEventListener("unhandledrejection", e => showErr(String(e.reason?.stack || e.reason)));
+</script>
 </head>
 <body>
 <script type="module">
@@ -31,7 +37,7 @@
     kept30: true,   // a 3.1 setup: no carrying over of 3.0 cards (delete it from mock:hacasa_nova in localStorage to try that migration)
     title: "Home.", rooms: ["living_room", "kitchen", "bedroom", "dressing_room", "landing", "attic"],
     roomImage: "/images/rooms/{slug}.jpg", homeImage: img("backyard"),
-    pages: { living_room: { image: img("livingroom") }, kitchen: { image: img("kitchen") }, bedroom: { image: img("lounge") }, dressing_room: { image: img("dressing") }, landing: { image: img("landing") }, attic: { image: img("office") } },
+    pages: { living_room: { image: img("livingroom"), add: ["media_player.tv", "media_player.speaker"] }, kitchen: { image: img("kitchen") }, bedroom: { image: img("lounge") }, dressing_room: { image: img("dressing") }, landing: { image: img("landing") }, attic: { image: img("office") } },
     home: { weather: "weather.home", energy: { power: "sensor.p1_power", today: "sensor.p1_energy_today", solar: "sensor.solar_power", solarToday: "sensor.solar_energy_today", battery: "sensor.home_battery", batteryPower: "sensor.home_battery_power", price: 0.28 },
 
       waste: [{ entity: "sensor.waste_bio", label: "Bio" }, { entity: "sensor.waste_plastic", label: "Plastic" }, { entity: "sensor.waste_paper", label: "Paper" }] },
