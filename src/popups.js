@@ -1,13 +1,13 @@
 // Popup renderers. `pop` is the panel's open popup descriptor {type, ...}; `p` the panel.
-import { t, locale, hc } from "./i18n.js";
+import { t, locale, timeOpts } from "./i18n.js";
 import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
-import { icon, isOn, unavailable, num, relTime, shortDate, domain } from "./util.js";
+import { icon, isOn, unavailable, num, relTime, shortDate, domain, atHome } from "./util.js";
 import { name, deviceName } from "./model.js";
 import { PAGES } from "./pages.js";
 import { keypad, bars } from "./extras.js";
 import { eventWhen, timeline, applianceState } from "./extras2.js";
-import { wasteColor, wasteWhen, condText, condIcon, condSvg, label, camStream, attFilter, ATT_FILTERS, mediaView , lightCaps, batteryOf, groupMembers, groupKind, groupCaps, cardType, anyIco, cardCfg, guardPlug } from "./cards.js";
+import { wasteColor, wasteWhen, condText, condIcon, condSvg, label, camStream, attFilter, ATT_FILTERS, mediaView , lightCaps, batteryOf, groupMembers, groupKind, groupCaps, cardType, anyIco, cardCfg, guardSwitch } from "./cards.js";
 import { roomPresets, snapshot, applyPreset, presetMatches, installUpdate, pendingUpdates } from "./features.js";
 import { modeList, toggleMode } from "./extras3.js";
 import { field, text, select, check, condFields } from "./settings.js";
@@ -130,7 +130,7 @@ function cardForm(p, pop) {
     </div>
     <div class="form">
       <div class="grp">${sh(t("Weergave"))}
-        ${builtin && !gd && !["ev", "garden", "todo"].includes(id) ? row(t("Kaart van het paneel"), html`<span class="note">${t("Naam en inhoud volgen de instellingen van het paneel; hieronder kun je de kaart op voorwaarde verbergen.")}</span>`) : nothing}
+        ${builtin && !gd && !["ev", "garden", "todo", "people"].includes(id) ? row(t("Kaart van het paneel"), html`<span class="note">${t("Naam en inhoud volgen de instellingen van het paneel; hieronder kun je de kaart op voorwaarde verbergen.")}</span>`) : nothing}
         ${builtin ? panelCardFields(p, id, draft, upd, row) : nothing}
         ${grp ? html`${row(t("Naam"), html`<div class="two"><input type="text" .value=${gd.name || ""} @change=${e => gupd({ name: e.target.value || undefined })}>${iconInput(p, gd.icon, v => gupd({ icon: v }), "mdi:shape-outline")}</div>`)}
           ${row(t("Soort"), html`<div class="seg">${[["light", t("Lampen")], ["plug", t("Stekkers & schakelaars")]].map(([v, l]) => html`<button class=${gkind === v ? "on" : ""} @click=${() => gupd({ kind: v, members: (gd.members || []).filter(x => x.startsWith("light.") === (v === "light")) })}>${l}</button>`)}</div>`, gkind === "light" ? t("helderheid-stappen of kleuren onderaan, zoals op een lampkaart") : t("schakelaars, stekkers en ventilatoren"))}
@@ -156,11 +156,13 @@ function cardForm(p, pop) {
         ${dom === "switch" ? row(t("Vermogenssensor"), select(p.hass, "sensor", draft.power, v => upd({ power: v || undefined }), { empty: t("automatisch (zelfde apparaat)"), filter: s => s.attributes.unit_of_measurement === "W" }), t("maakt er een stekkerkaart van (watt, verbruik, timer)")) : nothing}
         ${dom === "switch" && (applianceCapable(p, id) || draft.power) ? row(t("Apparaatfuncties"), html`<input type="checkbox" .checked=${!cur.noAppliance} @change=${e => p.setApplianceMode(id, e.target.checked)}>`, t("bezig / klaar op basis van het vermogen")) : nothing}
         ${appliance ? row(t("Apparaatfuncties"), html`<input type="checkbox" .checked=${!pop.a.plain} @change=${e => p.setApplianceMode(pop.a.key, e.target.checked)}>`, pop.a.op ? t("bezig / klaar volgens het apparaat zelf") : t("bezig / klaar op basis van het vermogen")) : nothing}
-        ${dom === "switch" || (appliance && pop.a.switch) ? row(t("Stekker"), seg("plug", [{ v: "", l: t("schakelen") }, { v: "confirm", l: t("met bevestiging") }, { v: "lock", l: t("alleen meten") }], ""), t("alleen meten: geen schakelknop en de kaart schakelt nooit, voor bijv. een koelkast")) : nothing}
         ${appliance && pop.a.power ? row(t("Drempel (W)"), html`<input type="number" .value=${String(draft.threshold ?? 5)} @change=${e => upd({ threshold: e.target.value === "" || +e.target.value === 5 ? undefined : +e.target.value })}>`, t("boven = bezig")) : nothing}
       </div>
       ${hasPress ? html`<div class="grp">${sh(t("Gedrag"))}
         ${row(t("Tikken"), seg("tap", [...(canToggle ? [{ v: "toggle", l: t("schakelen") }] : []), { v: "popup", l: t("details openen") }, { v: "more", l: t("Home Assistant-dialoog") }, { v: "none", l: t("niets") }], tapDef))}
+        ${dom === "switch" || (appliance && pop.a.switch) ? row(t("Alleen meten"), html`<input type="checkbox" .checked=${!!draft.measureOnly} @change=${e => upd({ measureOnly: e.target.checked || undefined })}>`, t("geen schakelknop en de kaart schakelt nooit, voor bijv. een koelkast")) : nothing}
+        ${canToggle ? row(t("Eerst bevestigen"), html`<input type="checkbox" .checked=${!!draft.confirm} @change=${e => upd({ confirm: e.target.checked || undefined })}>`, t("vraagt het na voordat de kaart schakelt")) : nothing}
+        ${canToggle && draft.confirm ? row(t("Vraag"), inp("confirmText", t("Weet je het zeker?")), t("optioneel, je eigen tekst in de bevestiging")) : nothing}
         ${row(t("Vasthouden"), seg("hold", [{ v: "popup", l: t("details openen") }, { v: "more", l: t("Home Assistant-dialoog") }, { v: "none", l: t("niets") }], holdDef))}
       </div>
       <div class="grp">${sh(t("Actieknoppen"), t("{n} van 3", { n: acts.length }))}
@@ -193,9 +195,17 @@ function cardForm(p, pop) {
   </div></div>`;
 }
 
+/** Home Assistant's <ha-camera-stream>, true once it is there. HA loads it with its picture cards, so ask for one and render again when it arrives. */
+let camAsk = null;
+function haCamPlayer(p) {
+  if (customElements.get("ha-camera-stream")) return true;
+  if (!camAsk && window.loadCardHelpers) camAsk = window.loadCardHelpers().then(h => { h.createCardElement({ type: "picture-entity", entity: "camera.hacasa", camera_view: "live" }); return Promise.race([customElements.whenDefined("ha-camera-stream"), new Promise((_, no) => setTimeout(no, 8000))]); }).then(() => p.requestUpdate()).catch(() => {});
+  return false;
+}
+
 export function renderPopup(p, pop) {
   CUR = { p, pop };
-  const hass = p.hass, home = p.home, roomName = p.room?.name || t("Thuis");
+  const hass = p.hass, home = p.home, roomName = pop.room?.name || p.room?.name || t("Thuis");   // pop.room: opened from a page outside the room (security page)
   switch (pop.type) {
     case "light": {
       const s = hass.states[pop.e.id] || pop.e.state, on = isOn(s), un = unavailable(s);
@@ -225,7 +235,7 @@ export function renderPopup(p, pop) {
     case "switch": {
       const s = hass.states[pop.e.id], on = isOn(s), d = pop.e.id.split(".")[0];
       return wrap(roomName, label(p, pop.e), on ? t("Aan") : t("Uit"), html`
-        ${(go => go ? modes([{ label: on ? t("Uitschakelen") : t("Inschakelen"), on, go }], "n2") : nothing)(guardPlug(p, [pop.e.id], label(p, pop.e), on, () => p.call(d === "input_boolean" ? "input_boolean" : d === "fan" ? "fan" : "switch", "toggle", { entity_id: pop.e.id })))}
+        ${(go => go ? modes([{ label: on ? t("Uitschakelen") : t("Inschakelen"), on, go }], "n2") : nothing)(guardSwitch(p, [pop.e.id], label(p, pop.e), () => p.call(d === "input_boolean" ? "input_boolean" : d === "fan" ? "fan" : "switch", "toggle", { entity_id: pop.e.id })))}
         <ul>${li("mdi:history", on ? t("Aan sinds") : t("Uit sinds"), relTime(s.last_changed))}${s.attributes.current_power_w ? li("mdi:flash-outline", t("Verbruik"), `${s.attributes.current_power_w} W`) : nothing}</ul>`);
     }
     case "fan": {
@@ -284,7 +294,7 @@ export function renderPopup(p, pop) {
     }
     case "sensor": {
       const s = hass.states[pop.e.id], on = isOn(s);
-      const batt = p.room?.ents.battery.find(b => b.reg.device_id && b.reg.device_id === pop.e.reg.device_id);
+      const batt = (pop.room || p.room)?.ents.battery.find(b => b.reg.device_id && b.reg.device_id === pop.e.reg.device_id);
       if (pop.history === undefined) p.loadHistory(pop);
       return wrap(roomName, label(p, pop.e), pop.kind === "motion" ? (on ? t("Beweging") : t("Geen beweging")) : on ? t("Open") : t("Dicht"), html`
         <ul>${li("mdi:history", t("Laatst gewijzigd"), relTime(s.last_changed))}${batt ? li("mdi:battery", t("Batterij"), `${batt.state.state}%`) : nothing}</ul>
@@ -300,7 +310,7 @@ export function renderPopup(p, pop) {
         const fmt = e => { const s = e && hass.states[e.id]; if (!s || unavailable(s)) return null; const v = hass.formatEntityState?.(s) ?? s.state;
           return v === s.state && /_program_/.test(v) ? v.split("_program_").pop().replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase()) : v; };   // untranslated "dishcare_dishwasher_program_auto_2" → "Auto 2"
         const prog = fmt(a.program), door = a.door ? hass.states[a.door.id]?.state : null, canStop = a.stop && ["running", "waiting"].includes(st.st) && hass.states[a.stop.id] && hass.states[a.stop.id].state !== "unavailable";   // a button's normal state is "unknown"
-        const swGo = sw ? guardPlug(p, [a.id, a.switch.id], title, sw.state === "on", () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null;
+        const swGo = sw ? guardSwitch(p, [a.id, a.switch.id], title, () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null;
         const ok = e => e && hass.states[e.id] && hass.states[e.id].state !== "unavailable", press = e => () => p.call("button", "press", { entity_id: e.id });
         const btns = a.wd ? [   // WashData: its own buttons, each only while it applies (it marks the others unavailable)
             ...(ok(a.pause) && st.st === "running" ? [{ label: t("Pauzeren"), go: press(a.pause) }] : []), ...(ok(a.resume) ? [{ label: t("Hervatten"), on: true, go: press(a.resume) }] : []),
@@ -318,11 +328,11 @@ export function renderPopup(p, pop) {
         return wrap(roomName, title, st.label, html`
           ${btns.length ? modes(btns, "n2") : nothing}
           ${st.progress != null && ["running", "waiting"].includes(st.st) ? html`<div class="pbar" style="margin-top:14px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden"><i style="display:block;height:100%;width:${Math.max(0, Math.min(100, st.progress))}%;background:#fff"></i></div>` : nothing}
-          <ul>${prog ? li("mdi:playlist-play", t("Programma"), prog, { onclick: () => p.moreInfo(a.program.id) }) : nothing}${st.progress != null && st.st !== "off" ? li("mdi:progress-clock", t("Voortgang"), `${Math.round(st.progress)}%`, { onclick: () => p.moreInfo(a.progress.id) }) : nothing}${st.end ? li("mdi:clock-end", t("Klaar om"), st.end.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }), { sub: left(st.end), onclick: () => p.moreInfo((a.finish || a.remain).id) }) : nothing}${st.doneAt ? li("mdi:check", t("Klaar sinds"), relTime(st.doneAt.toISOString())) : nothing}${door ? li("mdi:door", t("Deur"), door === "open" ? t("Open") : door === "locked" ? t("Vergrendeld") : t("Dicht"), { on: door === "open", onclick: () => p.moreInfo(a.door.id) }) : nothing}${(a.extra || []).map(x => { const s = hass.states[x.id]; return li("mdi:toggle-switch-outline", (s?.attributes.friendly_name || x.id).replace(title, "").trim() || x.id, isOn(s) ? t("Aan") : t("Uit"), { on: isOn(s), onclick: () => p.call("switch", "toggle", { entity_id: x.id }) }); })}${(a.flags || []).map(x => { const s = hass.states[x.id]; return li("mdi:information-variant", (s?.attributes.friendly_name || x.id).replace(title, "").trim() || x.id, unavailable(s) ? "–" : isOn(s) ? t("Aan") : t("Uit"), { on: isOn(s), onclick: () => p.moreInfo(x.id) }); })}${wdx}${li("mdi:information-outline", t("Status"), fmt(a.op) || "–", { sub: relTime(hass.states[a.op.id]?.last_changed), onclick: () => p.moreInfo(a.op.id) })}</ul>`);
+          <ul>${prog ? li("mdi:playlist-play", t("Programma"), prog, { onclick: () => p.moreInfo(a.program.id) }) : nothing}${st.progress != null && st.st !== "off" ? li("mdi:progress-clock", t("Voortgang"), `${Math.round(st.progress)}%`, { onclick: () => p.moreInfo(a.progress.id) }) : nothing}${st.end ? li("mdi:clock-end", t("Klaar om"), st.end.toLocaleTimeString(locale(), timeOpts()), { sub: left(st.end), onclick: () => p.moreInfo((a.finish || a.remain).id) }) : nothing}${st.doneAt ? li("mdi:check", t("Klaar sinds"), relTime(st.doneAt.toISOString())) : nothing}${door ? li("mdi:door", t("Deur"), door === "open" ? t("Open") : door === "locked" ? t("Vergrendeld") : t("Dicht"), { on: door === "open", onclick: () => p.moreInfo(a.door.id) }) : nothing}${(a.extra || []).map(x => { const s = hass.states[x.id]; return li("mdi:toggle-switch-outline", (s?.attributes.friendly_name || x.id).replace(title, "").trim() || x.id, isOn(s) ? t("Aan") : t("Uit"), { on: isOn(s), onclick: () => p.call("switch", "toggle", { entity_id: x.id }) }); })}${(a.flags || []).map(x => { const s = hass.states[x.id]; return li("mdi:information-variant", (s?.attributes.friendly_name || x.id).replace(title, "").trim() || x.id, unavailable(s) ? "–" : isOn(s) ? t("Aan") : t("Uit"), { on: isOn(s), onclick: () => p.moreInfo(x.id) }); })}${wdx}${li("mdi:information-outline", t("Status"), fmt(a.op) || "–", { sub: relTime(hass.states[a.op.id]?.last_changed), onclick: () => p.moreInfo(a.op.id) })}</ul>`);
       }
       const ps = hass.states[a.power.id];
       return wrap(roomName, cfg.name || (hass.devices?.[a.device]?.name_by_user || hass.devices?.[a.device]?.name || t("Apparaat")), st.label, html`
-        ${(go => go ? modes([{ label: sw.state === "on" ? t("Stekker uit") : t("Stekker aan"), on: sw.state === "on", go }], "n2") : nothing)(sw ? guardPlug(p, [a.id, a.switch.id], cfg.name || (hass.devices?.[a.device]?.name_by_user || hass.devices?.[a.device]?.name || t("Apparaat")), sw.state === "on", () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null)}
+        ${(go => go ? modes([{ label: sw.state === "on" ? t("Stekker uit") : t("Stekker aan"), on: sw.state === "on", go }], "n2") : nothing)(sw ? guardSwitch(p, [a.id, a.switch.id], cfg.name || (hass.devices?.[a.device]?.name_by_user || hass.devices?.[a.device]?.name || t("Apparaat")), () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null)}
         <ul>${li("mdi:flash-outline", t("Vermogen nu"), st.power != null ? `${Math.round(st.power)} W` : "–", { onclick: () => p.moreInfo(a.power.id) })}${li("mdi:tune", t("Drempel"), `${thr} W`, { sub: t("aanpassen via ⋯") })}${st.doneAt ? li("mdi:check", t("Klaar sinds"), relTime(st.doneAt.toISOString())) : nothing}${ps ? li("mdi:history", t("Laatste meting"), relTime(ps.last_updated)) : nothing}</ul>
         <div class="sub" style="margin-top:12px">${t("Bezig zolang het vermogen boven de drempel ligt; daarna \"Klaar\" tot het apparaat weer start.")}</div>`);
     }
@@ -352,8 +362,8 @@ export function renderPopup(p, pop) {
       return wrap(t("Afval"), home.waste[0] ? `${home.waste[0].label} ${wasteWhen(home.waste[0])}` : t("Geen data"), t("Ophaaldagen"), html`
         <ul>${home.waste.map((w, i) => li("mdi:trash-can-outline", html`<i class="dot" style="background:${wasteColor(w.label)}"></i>${w.label}`, wasteWhen(w), { on: i === 0, sub: w.days > 7 && w.date ? new Date(w.date).toLocaleDateString(locale(), { weekday: "long" }) : "" }))}</ul>`);
     case "people":
-      return wrap(t("Wie is thuis"), t("{n} van {m}", { n: home.home, m: home.persons.length }), home.persons.filter(s => s.state === "home").map(s => s.attributes.friendly_name).join(", ") || t("Niemand thuis"), html`
-        <ul>${home.persons.map(s => li("mdi:account-outline", s.attributes.friendly_name, s.state === "home" ? t("Thuis") : s.state === "not_home" ? t("Weg") : s.state, { on: s.state === "home", sub: personTravel(p, s) || relTime(s.last_changed), img: s.attributes.entity_picture || null }))}</ul>`);
+      return wrap(t("Wie is thuis"), t("{n} van {m}", { n: home.home, m: home.persons.length }), home.persons.filter(atHome).map(s => s.attributes.friendly_name).join(", ") || t("Niemand thuis"), html`
+        <ul>${home.persons.map(s => li("mdi:account-outline", s.attributes.friendly_name, atHome(s) ? t("Thuis") : s.state === "not_home" ? t("Weg") : s.state, { on: atHome(s), sub: personTravel(p, s) || relTime(s.last_changed), img: s.attributes.entity_picture || null }))}</ul>`);
     case "weather": return weatherPopup(p, pop, UI());
     case "defaults": {
       const def = DEFAULT_TYPES.find(x => x.type === pop.ctype); if (!def) return nothing;
@@ -361,7 +371,7 @@ export function renderPopup(p, pop) {
     }
     case "page": {
       const key = pop.key, isHome = key === "home", r = isHome ? null : p.rooms.find(x => x.id === key); if (!isHome && !r) return nothing;
-      const cur = p.pageCfg(key), d = pop.draft || { ...cur, hidden: [...(cur.hidden || [])], order: [...(cur.order || [])], ticker: { ...(cur.ticker || {}) }, lines: (cur.lines || []).map(l => ({ ...l })), pills: cur.pills ? cur.pills.map(x => ({ ...x })) : undefined };
+      const cur = isHome ? { ...p.pageCfg(key), temperature: p.userConfig?.home?.temperature, humidity: p.userConfig?.home?.humidity } : p.pageCfg(key), d = pop.draft || { ...cur, hidden: [...(cur.hidden || [])], order: [...(cur.order || [])], ticker: { ...(cur.ticker || {}) }, lines: (cur.lines || []).map(l => ({ ...l })), pills: cur.pills ? cur.pills.map(x => ({ ...x })) : undefined };
       const upd = patch => p.openPopup({ ...pop, draft: { ...d, ...patch } });
       const all = p.orderCards(p.pageCards(key), d.order), hid = new Set(d.hidden);
       const move = (i, dir) => { const keys = all.map(c => c.key), j = i + dir; if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; upd({ order: keys }); };
@@ -372,6 +382,9 @@ export function renderPopup(p, pop) {
         <div class="form">
           <label class="f"><span>${t("Titel")}</span><input type="text" .value=${d.title || ""} placeholder=${isHome ? (p.config.home?.greeting || t("automatisch (Goedemorgen …)")) : (p.hass.areas?.[key]?.name || r.name)} @change=${e => upd({ title: e.target.value || undefined })}></label>
           <label class="f"><span>${t("Foto")}<small>${t("pad of URL")}</small></span><input type="text" .value=${d.image || ""} placeholder=${defImage} @change=${e => upd({ image: e.target.value || undefined })}></label>
+          ${html`
+          ${field(t("Temperatuur"), select(hass, "sensor", d.temperature, v => upd({ temperature: v || undefined }), { empty: isHome ? t("gemiddelde van de kamers") : t("automatisch (sensoren in de kamer)"), filter: s => s.attributes.device_class === "temperature" }))}
+          ${field(t("Luchtvochtigheid"), select(hass, "sensor", d.humidity, v => upd({ humidity: v || undefined }), { empty: isHome ? t("gemiddelde van de kamers") : t("automatisch (sensoren in de kamer)"), filter: s => s.attributes.device_class === "humidity" }))}`}
         </div>
         <div class="prow" style="margin-top:18px"><span>${t("Kaarten")}</span><b>${t("{a} van {b} zichtbaar", { a: all.length - hid.size, b: all.length })}</b></div>
         <ul class="plist" data-drag>${all.map((c, i) => html`<li data-k=${c.key} class=${[hid.has(c.key) ? "off" : "", pop.drag === c.key ? "drag" : ""].join(" ")}><span class="grip" title=${t("Sleep om te verplaatsen")} @pointerdown=${ev => drag(ev, c.key)}><ha-icon icon="mdi:drag"></ha-icon></span><div>${c.label}<small>${c.key.includes(".") || c.key.startsWith("device:") ? c.key : ""}</small></div>
@@ -384,7 +397,8 @@ export function renderPopup(p, pop) {
           <button class="addline" @click=${() => upd({ lines: [...(d.lines || []), { icon: "mdi:text", text: "" }] })}>${t("+ eigen regel")}</button></div>
         ${pillEditor(p, pop, key, d, upd)}
         <div class="modes n3" style="margin-top:18px">
-          <button class="on" @click=${() => p.savePage(key, { title: d.title, image: d.image, lines: (d.lines || []).filter(l => l.text).length ? d.lines.filter(l => l.text) : undefined, hidden: d.hidden.length ? d.hidden : undefined, order: d.order.length ? d.order : undefined, ticker: Object.values(d.ticker).some(v => v === false) ? Object.fromEntries(Object.entries(d.ticker).filter(([, v]) => v === false)) : undefined, add: d.add, keep: d.keep, pills: d.pills })}>${t("Opslaan")}</button>
+          <button class="on" @click=${async () => { if (isHome) { const hm = { ...(p.userConfig?.home || {}), temperature: d.temperature, humidity: d.humidity }; if (hm.temperature !== p.userConfig?.home?.temperature || hm.humidity !== p.userConfig?.home?.humidity) await p.saveUser({ home: hm }); }
+            p.savePage(key, { title: d.title, image: d.image, temperature: isHome ? undefined : d.temperature, humidity: isHome ? undefined : d.humidity, lines: (d.lines || []).filter(l => l.text).length ? d.lines.filter(l => l.text) : undefined, hidden: d.hidden.length ? d.hidden : undefined, order: d.order.length ? d.order : undefined, ticker: Object.values(d.ticker).some(v => v === false) ? Object.fromEntries(Object.entries(d.ticker).filter(([, v]) => v === false)) : undefined, add: d.add, keep: d.keep, pills: d.pills }); }}>${t("Opslaan")}</button>
           <button @click=${() => p.savePage(key, null)}>${t("Herstel")}</button>
           <button data-close>${t("Annuleren")}</button></div></div>`;
     }
@@ -442,6 +456,8 @@ export function renderPopup(p, pop) {
     case "camera": {
       const s = hass.states[pop.s.entity_id] || pop.s;
       const src = camStream(s);
+      // a camera that streams (HLS/WebRTC) plays in Home Assistant's own player, like its details dialog: some have no usable MJPEG stream (#189)
+      const haPlayer = ((s.attributes.supported_features & 2) || pop.imgErr) && !unavailable(s) && haCamPlayer(p);
       const camRoom = p.rooms.find(r => r.ents.cameras.some(c => c.id === s.entity_id)), bell = p.config.home?.doorbell;
       const evIds = [...new Set([...(camRoom?.ents.motion.map(e => e.id) || []), ...((bell?.camera === s.entity_id && bell.triggers) || []).filter(id => domain(id) === "binary_sensor")])];
       if (evIds.length && pop.events === undefined && !pop.menu && !pop.form) p.loadCamEvents(pop, evIds);
@@ -449,7 +465,7 @@ export function renderPopup(p, pop) {
           ${li("mdi:tune", t("Kaart instellen"), "", { sub: t("naam, live beeld, verbergen"), onclick: () => p.openPopup({ ...pop, menu: false, form: true }) })}
           ${li("mdi:open-in-new", t("Openen in Home Assistant"), "", { sub: s.entity_id, onclick: () => { p.popup = null; p.moreInfo(s.entity_id); } })}</ul>`
         : pop.form ? cardForm(p, pop)
-        : html`${src ? html`<img class="stream" src=${src} alt="">` : html`<div class="sub">${t("Geen beeld beschikbaar")}</div>`}
+        : html`${haPlayer ? html`<ha-camera-stream class="stream" .hass=${hass} .stateObj=${s} controls muted></ha-camera-stream>` : src ? html`<img class="stream" src=${src} alt="" @error=${() => { if (!pop.imgErr && p.popup === pop) p.popup = { ...pop, imgErr: true }; }}>` : html`<div class="sub">${t("Geen beeld beschikbaar")}</div>`}
           <div class="sub" style="margin-top:10px">${s.state === "recording" ? t("Neemt op") : s.state === "streaming" ? t("Live") : t("Inactief")} · ${relTime(s.last_changed)}${pop.by ? " · " + t("geopend door {by}", { by: pop.by }) : ""}</div>
           ${evIds.length ? html`<div class="prow" style="margin-top:18px"><span>${t("Beweging laatste 24 uur")}</span><b>${pop.events ? pop.events.length + "×" : "…"}</b></div>${pop.events ? timeline(pop.events, "motion") : nothing}` : nothing}`;
       return html`<div class="popup wide"><h2>${label(p, { id: s.entity_id, state: s })} ${hbtns(p, pop)}</h2>${body}</div>`;
@@ -473,6 +489,8 @@ export function renderPopup(p, pop) {
           ${tp.tap === "service" ? f(t("Actie"), txt("service", "light.turn_on"), "domein.service") : nothing}
           ${tp.tap === "service" ? f(t("Data"), txt("data", '{"entity_id": "light.x", "brightness_pct": 50}'), "JSON") : nothing}
           ${tp.tap === "navigate" ? f(t("Pad"), txt("path", "/energy")) : nothing}
+          ${tp.tap === "toggle" || tp.tap === "service" ? f(t("Eerst bevestigen"), html`<input type="checkbox" .checked=${!!tp.confirm} @change=${e => upd({ confirm: e.target.checked || undefined })}>`, t("vraagt het na voordat de actie loopt")) : nothing}
+          ${(tp.tap === "toggle" || tp.tap === "service") && tp.confirm ? f(t("Vraag"), txt("confirmText", t("Weet je het zeker?")), t("optioneel, je eigen tekst in de bevestiging")) : nothing}
           <div class="modes n2" style="margin-top:16px"><button class="on" @click=${() => { p.popup = null; }}>${t("Klaar")}</button><button @click=${() => { p.draft = { ...p.draft, templates: list.filter((_, j) => j !== pop.index) }; p.popup = null; }}>${t("Verwijderen")}</button></div>
         </div></div>`;
     }

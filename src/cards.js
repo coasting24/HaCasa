@@ -1,5 +1,5 @@
 // Card renderers. Each returns a lit template. `p` is the panel (for hass, popups, services).
-import { t, locale, hc, getLang } from "./i18n.js";
+import { t, locale, timeOpts, getLang } from "./i18n.js";
 import { html, nothing } from "lit";
 import { directive, Directive, PartType } from "lit/directive.js";
 import { classMap } from "lit/directives/class-map.js";
@@ -76,7 +76,11 @@ export const uico = (v, mdi, svg) => v ? anyIco(v) : ico(mdi, svg);
 export const cardType = (p, id) => id.startsWith("device:") ? "appliance" : id.split(".")[0];
 export const cardCfg = (p, id) => {
   const type = cardType(p, id), dp = p._prevDef?.type === type ? p._prevDef : null;   // _prevDef: the Card defaults form's draft, while its preview renders (per-card settings left out)
-  return { ...(dp ? dp.draft : (p.config.cardDefaults || {})[type] || {}), ...(dp ? {} : p._preview?.id === id ? p._preview.draft : (p.config.cards || {})[id] || {}) };   // _preview: the card form's draft, while its preview renders
+  const c = { ...(dp ? dp.draft : (p.config.cardDefaults || {})[type] || {}), ...(dp ? {} : p._preview?.id === id ? p._preview.draft : (p.config.cards || {})[id] || {}) };   // _preview: the card form's draft, while its preview renders
+  // the fork's own plug setting before 3.2 ("plug": "lock" | "confirm") reads as upstream's measureOnly / confirm, so a locked fridge stays locked
+  if (c.plug === "lock" && c.measureOnly == null) c.measureOnly = true;
+  if (c.plug === "confirm" && c.confirm == null) c.confirm = true;
+  return c;
 };
 /** a rendered visibility template counts as false when it is one of these (or empty) */
 export const condFalse = v => /^(false|0|no|off|none|unknown|unavailable|)$/i.test(String(v ?? "").trim());
@@ -101,10 +105,24 @@ export function condHiddenBy(p, c, tplKey) {
   return false;
 }
 /** tap / hold handlers from the settings: tap = toggle (default when the card can toggle) | popup | more | none; hold = popup (default) | more | none */
-export function pressFor(p, id, toggle, popup) {
-  const cfg = cardCfg(p, id), run = k => k === "toggle" && toggle ? toggle : k === "popup" ? popup : k === "more" ? () => p.moreInfo(id.startsWith("device:") ? cfg.key || id : id) : k === "none" ? () => {} : null;
+export function pressFor(p, id, toggle0, popup, title) {
+  const cfg = cardCfg(p, id), toggle = toggle0 && cfg.confirm ? () => confirmFor(p, id, toggle0, title) : toggle0, run = k => k === "toggle" && toggle ? toggle : k === "popup" ? popup : k === "more" ? () => p.moreInfo(id.startsWith("device:") ? cfg.key || id : id) : k === "none" ? () => {} : null;
   const tap = run(cfg.tap) || (toggle || popup), hold = run(cfg.hold) || popup;
   return { tap, hold };
+}
+/** runs `go`, after a "are you sure?" popup when the card has "confirm first" on (per card, in its settings) */
+export function confirmFor(p, id, go, title) {
+  const cfg = cardCfg(p, id); if (!cfg.confirm) return go();
+  p.openPopup({ type: "confirm", title: t("Bevestigen"), big: title || cfg.name || p.hass.states[id]?.attributes.friendly_name || "", sub: cfg.confirmText || t("Weet je het zeker?"), okLabel: t("Ja"), ok: go });
+}
+/** "measure only" (per card, e.g. a fridge on a plug): the card and its popup never switch. A device card and its
+    switch entity each have settings; one of them saying so is enough */
+export const measureOnly = (p, ...keys) => keys.some(k => k && cardCfg(p, k).measureOnly);
+/** `run` (switching a plug) outside a card's own tap: null when measure only, behind the confirmation when a card asks for it */
+export function guardSwitch(p, keys, title, run) {
+  if (measureOnly(p, ...keys)) return null;
+  const k = keys.find(k => k && cardCfg(p, k).confirm);
+  return k ? () => confirmFor(p, k, run, title) : run;
 }
 /** classes that hide the name, subtitle or corner state when the user switched them off */
 export const infoCls = cfg => ({ noname: !!cfg.hideName, nosub: !!cfg.hideSub, nostate: !!cfg.hideState });
@@ -123,14 +141,6 @@ export const hasActs = (p, id) => (cardCfg(p, id).actions || []).some(a => a && 
 export const label = (p, e) => cardCfg(p, e.id).name || name(p.hass, e);
 export const isHidden = (p, id) => !!cardCfg(p, id).hidden;
 export const icoFor = (p, id, mdi, svg) => uico(cardCfg(p, id).icon, mdi, svg);
-/** how a plug may be switched, set per card ("plug"): "" = normally, "confirm" = after asking, "lock" = never (measure
-    only, e.g. a fridge). A device card and its switch entity each have settings; the stricter one counts */
-export const plugMode = (p, ...keys) => { const m = keys.filter(Boolean).map(k => cardCfg(p, k).plug); return m.includes("lock") ? "lock" : m.includes("confirm") ? "confirm" : ""; };
-/** `run` (switching a plug) guarded by plugMode: null when locked, a confirmation first when asked for */
-export function guardPlug(p, keys, title, on, run) {
-  const m = plugMode(p, ...keys); if (m === "lock") return null; if (m !== "confirm") return run;
-  return () => p.openPopup({ type: "confirm", title: t("Stekker"), big: title, sub: on ? t("Echt uitzetten?") : t("Echt aanzetten?"), okLabel: on ? t("Uitzetten") : t("Aanzetten"), ok: run });
-}
 /** tap/hold wiring honouring the per-card "tap" override: toggle (default) or popup */
 const toggleOrPopup = (p, id, toggle, popup) => pressFor(p, id, toggle, popup);
 
@@ -226,7 +236,7 @@ export function switchCard(p, e) {
   const s = e.state, on = isOn(s), un = unavailable(s), d = e.id.split(".")[0];
   const svc = d === "input_boolean" ? "input_boolean" : "switch";
   return html`<div class=${classMap({ card: true, on, unavailable: un, acts: hasActs(p, e.id), ...infoCls(cardCfg(p, e.id)) })}
-      ${pressDir(p, toggleOrPopup(p, e.id, guardPlug(p, [e.id], label(p, e), on, () => p.call(svc, "toggle", { entity_id: e.id })), () => p.openPopup({ type: "switch", e })))}>
+      ${pressDir(p, toggleOrPopup(p, e.id, measureOnly(p, e.id) ? null : () => p.call(svc, "toggle", { entity_id: e.id }), () => p.openPopup({ type: "switch", e })))}>
     ${un ? ua() : nothing}
     <div class="i">${icoFor(p, e.id, "mdi:power-socket-eu", "plug")}</div>
     <div class="c">${ovr(p, e.id, "state") ?? (un ? t("Onbereikbaar") : on ? t("Aan") : t("Uit"))}</div>
@@ -447,13 +457,13 @@ function plugCard(p, a, st, title, cfg, acts) {
   const since = sw?.state?.last_changed ? sinceText(sw.state.last_changed) : "";
   const tmr = p.plugTimers?.[a.id], left = tmr ? Math.max(0, Math.round((tmr.at - Date.now()) / 60000)) : null, plain = !!a.plain;
   let bottom = nothing;
-  const toggle = sw ? guardPlug(p, [a.id, sw.id], title, on, () => p.call("switch", "toggle", { entity_id: sw.id })) : null;
-  if (mode === "timer" && (!sw || toggle)) bottom = html`<div class="lbl chips" @click=${ev => ev.stopPropagation()}>${[15, 30, 60].map(m => html`<button class=${classMap({ on: tmr?.min === m })} @click=${() => p.setPlugTimer(a, m)}>${m}</button>`)}</div>`;
+  const locked = measureOnly(p, a.id, sw?.id);
+  if (mode === "timer" && !locked) bottom = html`<div class="lbl chips" @click=${ev => ev.stopPropagation()}>${[15, 30, 60].map(m => html`<button class=${classMap({ on: tmr?.min === m })} @click=${() => p.setPlugTimer(a, m)}>${m}</button>`)}</div>`;
   else if (mode === "cost") bottom = price ? html`<div class="lbl cost"><span>${h?.today != null ? html`${t("Vandaag")} <b>${eur(h.today * price)}</b>` : ""}${!on && W > 0.5 ? html`${h?.today != null ? dot() : nothing}${t("Sluipverbruik")} <b>${eur(W * 24 * 30 / 1000 * price)}</b> / ${t("maand")}` : nothing}</span></div>` : html`<div class="lbl"><span>${t("Stel een kWh-prijs in bij Energie")}</span></div>`;
   else if (mode === "bars") bottom = h?.rows ? html`<div class="lbl bars">${h.rows.map(r => html`<i class=${classMap({ on: r.v > 0.01 })} style="height:${Math.max(9, r.v / (h.maxH || 1) * 100)}%"></i>`)}</div>` : html`<div class="lbl"><span>…</span></div>`;
-  else if (mode === "spark" && h?.peak) bottom = html`<div class="lbl"><span>${t("piek {w} W om {t}", { w: h.peak.v, t: new Date(h.peak.t).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) })}</span></div>`;
+  else if (mode === "spark" && h?.peak) bottom = html`<div class="lbl"><span>${t("piek {w} W om {t}", { w: h.peak.v, t: new Date(h.peak.t).toLocaleTimeString(locale(), timeOpts()) })}</span></div>`;
   return html`<div class=${classMap({ card: true, plug: true, appl: acts.length > 0, hasspk: mode === "spark" && !!h?.spark?.length, on, unavailable: st.st === "unknown", ...infoCls(cfg) })}
-      ${pressDir(p, pressFor(p, a.id, toggle, () => p.openPopup({ type: "appliance", a })))}>
+      ${pressDir(p, pressFor(p, a.id, sw && !locked ? () => p.call("switch", "toggle", { entity_id: sw.id }) : null, () => p.openPopup({ type: "appliance", a }), title))}>
     ${st.st === "unknown" ? ua() : nothing}
     <div class="i">${uico(cfg.icon, "mdi:power-plug-outline", "plug")}</div>
     <div class="c">${ovr(p, a.id, "state") ?? (left != null ? html`<i></i>${t("uit over {n} min", { n: left })}` : st.st === "unknown" ? t("Geen meting") : plain ? (on ? t("Aan") : t("Uit")) : st.st === "running" ? t("Bezig") : st.st === "done" ? t("Klaar") : on ? (W > 0.5 ? t("Standby") : t("Aan")) : t("Uit"))}</div>
@@ -480,7 +490,7 @@ export function applianceCard(p, a) {
   const foot = [noProg || /^(off|none|unknown)$/i.test(progName) ? "" : progName, maint ? html`<b class="mt">${t("Onderhoud nodig")}</b>` : "", st.progress != null && bar == null && !quiet ? `${Math.round(st.progress)}%` : "", st.power != null && !(a.wd && (quiet || maint)) ? `${Math.round(st.power)} W` : "", a.door && p.hass.states[a.door.id]?.state === "open" ? t("Deur open") : ""].filter(Boolean);
   const acts = [];
   if (a.stop && !a.plain && !a.wd && ["running", "waiting"].includes(st.st)) acts.push({ icon: "mdi:stop", label: t("Stop"), run: () => p.call("button", "press", { entity_id: a.stop.id }) });
-  const pw = a.switch && a.op && !unavailable(a.switch.state) ? guardPlug(p, [a.id, a.switch.id], title, isOn(a.switch.state), () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null;
+  const pw = a.switch && a.op && !unavailable(a.switch.state) ? guardSwitch(p, [a.id, a.switch.id], title, () => p.call("switch", "toggle", { entity_id: a.switch.id })) : null;
   if (pw) acts.push({ icon: "mdi:power", label: isOn(a.switch.state) ? t("Uit") : t("Aan"), on: isOn(a.switch.state), run: pw });
   if (!a.op && a.power) return plugCard(p, a, st, title, cfg, acts);
   return html`<div class=${classMap({ card: true, appl: acts.length > 0, on: APPLIANCE_ACTIVE.includes(st.st), running: st.st === "running", unavailable: st.st === "unknown" })}
@@ -500,7 +510,9 @@ export const applianceIcon = n => /was|wash/i.test(n) && !/vaat|dish/i.test(n) ?
 export function templateCard(p, tc, i) {
   const r = p.templates?.[tc.id] || {}, on = /^(on|aan|true|open|playing|home|thuis)$/i.test(String(r.state || "").trim()) || r.state?.startsWith?.("!");
   const state = String(r.state ?? "…").replace(/^!/, "");
-  const tap = () => { if (tc.tap === "toggle" && tc.entity) p.call(tc.entity.split(".")[0] === "input_boolean" ? "input_boolean" : "homeassistant", "toggle", { entity_id: tc.entity }); else if (tc.tap === "service" && tc.service) { const [d, s] = tc.service.split("."); let data = {}; try { data = JSON.parse(tc.data || "{}"); } catch {} p.call(d, s, data); } else if (tc.tap === "navigate" && tc.path) p.goPath(tc.path); else if (tc.entity) p.moreInfo(tc.entity); };
+  // toggle and action can ask first, with a question of your own (#184)
+  const sure = go => tc.confirm ? p.openPopup({ type: "confirm", title: t("Bevestigen"), big: tc.name || t("Template"), sub: tc.confirmText || t("Weet je het zeker?"), okLabel: t("Ja"), ok: go }) : go();
+  const tap = () => { if (tc.tap === "toggle" && tc.entity) sure(() => p.call(tc.entity.split(".")[0] === "input_boolean" ? "input_boolean" : "homeassistant", "toggle", { entity_id: tc.entity })); else if (tc.tap === "service" && tc.service) sure(() => { const [d, s] = tc.service.split("."); let data = {}; try { data = JSON.parse(tc.data || "{}"); } catch {} return p.call(d, s, data); }); else if (tc.tap === "navigate" && tc.path) p.goPath(tc.path); else if (tc.entity) p.moreInfo(tc.entity); };
   return html`<div class=${classMap({ card: true, on, unavailable: r.error })} ${pressDir(p, { tap, hold: tc.entity ? () => p.moreInfo(tc.entity) : null })}>
     <div class="n">${tc.name || t("Template")}</div><div class="s" title=${r.error && p.hass.user?.is_admin ? r.msg || "" : ""}>${r.error ? (p.hass.user?.is_admin ? t("Templatefout") : t("alleen voor beheerders")) : state}</div>
     ${r.label ? html`<div class="lbl">${r.label}</div>` : nothing}
@@ -543,7 +555,7 @@ export function stripCard(p, st) {
     <div class="n">${title}</div>
     <div class="s">${un ? t("Onbereikbaar") : on ? t("{n} van {m} aan", { n: on, m: st.switches.length }) : t("Alles uit")}</div>
     <div class="socks">${st.switches.map((e, i) => html`<button class=${classMap({ on: isOn(e.state), unavailable: unavailable(e.state) })} title=${label(p, e)}
-        ${pressDir(p, { tap: guardPlug(p, [e.id], label(p, e), isOn(e.state), () => p.call("switch", "toggle", { entity_id: e.id })) || (() => p.openPopup({ type: "switch", e })), hold: () => p.openPopup({ type: "switch", e }) })}>
+        ${pressDir(p, { tap: guardSwitch(p, [e.id], label(p, e), () => p.call("switch", "toggle", { entity_id: e.id })) || (() => p.openPopup({ type: "switch", e })), hold: () => p.openPopup({ type: "switch", e }) })}>
         ${anyIco(cardCfg(p, e.id).icon || "mdi:power-socket-eu")}<small>${cardCfg(p, e.id).name || (i + 1)}</small></button>`)}</div>
   </div>`;
 }
@@ -682,7 +694,7 @@ function homeAllCards(p, h) {
     <div class="n">${t("Scènes")}</div><div class="s">${h.scenes.slice(0, 4).map(s => html`<button title=${s.attributes.friendly_name} @click=${ev => { ev.stopPropagation(); p.call("scene", "turn_on", { entity_id: s.entity_id }); }}><ha-icon icon=${s.attributes.icon || "mdi:palette-outline"}></ha-icon><small>${s.attributes.friendly_name}</small></button>`)}</div></div>`);
   // agenda: next event (events are fetched by the panel into p.events)
   if (h.calendars.length && p.events) { const ev = nextEvent(p.events), later = p.events.filter(x => x !== ev && x.end > new Date()).slice(0, 2);
-    const when = x => { const today = new Date(); today.setHours(0, 0, 0, 0); const d = x.start < new Date(today.getTime() + 86400000) ? "" : x.start < new Date(today.getTime() + 2 * 86400000) ? t("Morgen") + " " : x.start.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "") + " "; return d + (x.allDay ? t("hele dag") : x.start.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() })); };
+    const when = x => { const today = new Date(); today.setHours(0, 0, 0, 0); const d = x.start < new Date(today.getTime() + 86400000) ? "" : x.start < new Date(today.getTime() + 2 * 86400000) ? t("Morgen") + " " : x.start.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "") + " "; return d + (x.allDay ? t("hele dag") : x.start.toLocaleTimeString(locale(), timeOpts())); };
     add("agenda", t("Agenda"), html`<div class=${classMap({ card: true, hassub: later.length > 0 })} ${pressDir(p, { tap: () => p.openPopup({ type: "agenda" }) })}>
     <div class="i">${ico("mdi:calendar-blank-outline", "calendar")}</div>
     <div class="n">${ev ? ev.summary : t("Niets gepland")}</div><div class="s">${ev ? eventWhen(ev) : t("vandaag en morgen")}</div>
@@ -705,7 +717,7 @@ const PRECIP = { rainy: "Regen", pouring: "Stortregen", lightning: "Onweer", "li
 /** "Regen verwacht rond 16:00" from the next twelve hours, "Droog de komende uren" when nothing is coming, "" without a forecast */
 export function wxExpect(p, short = false) {
   const soon = (p.wx?.hourly || []).filter(f => new Date(f.datetime) > new Date() && new Date(f.datetime) - Date.now() < 12 * 3600000).find(f => PRECIP[f.condition]);
-  const at = soon ? new Date(soon.datetime).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) : "";
+  const at = soon ? new Date(soon.datetime).toLocaleTimeString(locale(), timeOpts()) : "";
   if (short) return soon ? t("{what} rond {t}", { what: t(PRECIP[soon.condition]), t: at }) : p.wx?.hourly?.length ? t("Droog") : "";
   return soon ? t("{what} verwacht rond {t}", { what: t(PRECIP[soon.condition]), t: at }) : p.wx?.hourly?.length ? t("Droog de komende uren") : "";
 }

@@ -1,9 +1,9 @@
 // Turns the Home Assistant registries + states into the panel's room/home model.
 // Rooms = areas. An entity belongs to an area directly or through its device.
-import { slug, domain, num, isOn, unavailable, isDown, daysUntil } from "./util.js";
+import { slug, roomSlug, domain, num, isOn, unavailable, isDown, daysUntil, atHome } from "./util.js";
 import { t, locale } from "./i18n.js";
 /** an area picture as HA stores it is its 512 px preview (/api/image/serve/<id>/512x512): stretched over a whole screen it is
- *  blurred and blocky, so the background takes the uploaded original from the same place */
+ *  blurred and blocky, so the background takes the uploaded original from the same place (#194, coasting24) */
 const fullPic = u => u ? u.replace(/^(\/api\/image\/serve\/[^/]+\/)\d+x\d+$/, "$1original") : u;
 
 const DOOR = ["door", "garage_door", "opening", "garage"];
@@ -153,14 +153,16 @@ export function buildRooms(hass, config) {
     const extra = (config.pages?.[a.area_id]?.add || []).filter(id => hass.states[id] && !own.some(e => e.id === id)).map(id => ({ id, reg: hass.entities?.[id] || {}, state: hass.states[id], added: true }));
     const ents = classify([...own, ...extra], config, hass);
     ents.media = linkMedia(hass, ents.media, config, new Set(config.pages?.[a.area_id]?.add || []));
-    const s = slug(a.name), pg = config.pages?.[a.area_id] || {};
+    const s = roomSlug(a.name, a.area_id), pg = config.pages?.[a.area_id] || {};
     return {
       id: a.area_id, name: pg.title || a.name, slug: s, floor: a.floor_id || null,
       image: pg.image || fullPic(a.picture) || (config.roomImage || "").replace("{slug}", s),
       // photo file named after the area name, or else after the area id (stays put when the area is renamed)
       images: pg.image || a.picture || !config.roomImage ? null : [...new Set([s, slug(a.area_id)])].map(x => config.roomImage.replace("{slug}", x)),
       ents,
-      temp: avg(ents.temp), hum: avg(ents.hum),
+      temp: pg.temperature ? num(hass.states[pg.temperature]?.state) : avg(ents.temp),   // Page settings → Temperature / Humidity
+      tempId: pg.temperature || null, humId: pg.humidity || null,
+      hum: pg.humidity ? num(hass.states[pg.humidity]?.state) : avg(ents.hum),
       motion: latest(ents.motion),
       motionOn: ents.motion.filter(e => !config.home?.bannerSensors || config.home.bannerSensors.includes(e.id)).some(e => isOn(e.state)),
       lightsOn: ents.lights.filter(e => isOn(e.state)).length,
@@ -199,7 +201,8 @@ export function buildHome(hass, config, rooms, notifications = []) {
   const lights = all.filter(e => domain(e.id) === "light" && !e.reg.entity_category);
   const doors = rooms.flatMap(r => r.ents.doors.map(e => ({ ...e, room: r })));
   const windows = rooms.flatMap(r => r.ents.windows.map(e => ({ ...e, room: r })));
-  const persons = Object.values(hass.states).filter(s => domain(s.entity_id) === "person");
+  const everyone = Object.values(hass.states).filter(s => domain(s.entity_id) === "person");
+  const hidePeople = new Set(config.cards?.people?.hide || []), persons = everyone.filter(s => !hidePeople.has(s.entity_id));   // Household card → settings
 
   const low = h.lowBattery ?? 20;
   const attention = [];
@@ -226,7 +229,7 @@ export function buildHome(hass, config, rooms, notifications = []) {
   const calendars = h.calendars || Object.values(hass.states).filter(s => domain(s.entity_id) === "calendar").map(s => s.entity_id);
   return {
     calendars, appliances: (h.appliances || []).filter(a => a.power), sun: hass.states["sun.sun"] || null,
-    persons, home: persons.filter(p => p.state === "home").length,
+    persons, everyone, home: persons.filter(atHome).length,
     alarm: pick(hass, h.alarm, "alarm_control_panel"),
     climate: pick(hass, h.climate, "climate"),
     weather: pick(hass, h.weather, "weather"),

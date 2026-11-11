@@ -3,7 +3,7 @@
 // The page is split into tabs (left) so each topic stays small.
 import { t, locale, LANGUAGES } from "./i18n.js";
 import { html, nothing } from "lit";
-import { domain, slug, SUFFIX, VERSION } from "./util.js";
+import { domain, slug, roomSlug, SUFFIX, VERSION } from "./util.js";
 import { QUICK_TYPES, QUICK_DOMAINS, triggerCandidates, selfUpdate } from "./features.js";
 import { PAGES } from "./pages.js";
 import { defaultsGrid } from "./defaults.js";
@@ -92,7 +92,7 @@ export function renderSettings(p) {
   const setBell = (k, v) => setHome("doorbell", { ...(d.home?.doorbell || {}), [k]: v });
 
   // rooms: ordered list of selected areas + the rest
-  const areas = Object.values(hass.areas || {}).map(a => ({ id: a.area_id, name: a.name, slug: slug(a.name) }));
+  const areas = Object.values(hass.areas || {}).map(a => ({ id: a.area_id, name: a.name, slug: roomSlug(a.name, a.area_id) }));
   const selected = Array.isArray(d.rooms) ? d.rooms.map(k => areas.find(a => a.id === k || a.slug === k || a.name === k)).filter(Boolean) : p.rooms.map(r => areas.find(a => a.id === r.id)).filter(Boolean);
   const rest = areas.filter(a => !selected.some(s => s.id === a.id)).sort((a, b) => a.name.localeCompare(b.name, locale()));
   const setRooms = list => set("rooms", list.map(a => a.id));
@@ -110,7 +110,7 @@ export function renderSettings(p) {
   const dirty = strip(d) !== strip(p.config);
   const sec = (title, meta, body) => html`<section class="pcard"><h2>${title}${meta ? html`<small>${meta}</small>` : nothing}</h2>${body}</section>`;
   const pageName = key => key === "home" ? t("Startpagina") : (p.rooms.find(r => r.id === key)?.name || key);
-  const cardSummary = c => [c.name && t("naam: {n}", { n: c.name }), c.icon && t("icoon: {n}", { n: c.icon }), c.tap === "popup" && t("tikken opent details"), c.hidden && t("verborgen"), c.noColor && t("kleur uit"), c.noArt && t("albumhoes uit"), c.noMode && t("modusknoppen uit"), c.noPreset && t("thuis/weg uit"), c.live && t("live beeld"), c.noAppliance && t("apparaatfuncties uit"), c.threshold != null && t("drempel {n} W", { n: c.threshold })].filter(Boolean).join(" · ");
+  const cardSummary = c => [c.name && t("naam: {n}", { n: c.name }), c.icon && t("icoon: {n}", { n: c.icon }), c.tap === "popup" && t("tikken opent details"), c.confirm && t("Eerst bevestigen").toLowerCase(), c.measureOnly && t("Alleen meten").toLowerCase(), c.hidden && t("verborgen"), c.noColor && t("kleur uit"), c.noArt && t("albumhoes uit"), c.noMode && t("modusknoppen uit"), c.noPreset && t("thuis/weg uit"), c.live && t("live beeld"), c.noAppliance && t("apparaatfuncties uit"), c.threshold != null && t("drempel {n} W", { n: c.threshold })].filter(Boolean).join(" · ");
 
   const content = {
     algemeen: html`
@@ -119,8 +119,10 @@ export function renderSettings(p) {
         <div class="f"><span>${t("Importeren")}<small>${t("een export of een oude config.json; wordt samengevoegd met wat er al staat")}</small></span><input type="file" accept="application/json,.json" @change=${e => { if (e.target.files[0]) p.importSettings(e.target.files[0]); e.target.value = ""; }}></div>`)}
       ${sec(t("Weergave"), "", html`
         ${field(t("Taal"), html`<select @change=${e => set("language", e.target.value || undefined)}><option value="" ?selected=${!d.language}>${t("automatisch (taal van Home Assistant)")}</option>${Object.entries(LANGUAGES).map(([k, l]) => html`<option value=${k} ?selected=${d.language === k}>${l}</option>`)}</select>`, t("direct zichtbaar na opslaan"))}
+        ${field(t("Tijdnotatie"), html`<select @change=${e => set("timeFormat", e.target.value || undefined)}><option value="" ?selected=${!d.timeFormat}>${t("automatisch (zoals Home Assistant)")}</option><option value="12" ?selected=${d.timeFormat === "12"}>${t("12-uurs (2:30 PM)")}</option><option value="24" ?selected=${d.timeFormat === "24"}>${t("24-uurs (14:30)")}</option></select>`, t("automatisch volgt de tijdnotatie in je Home Assistant-profiel"))}
         ${field(t("Titel"), text(d.title, v => set("title", v), t("Thuis") + "."), t("linksboven in de navigatie"))}
         ${field(t("Navigatie"), html`<select @change=${e => set("navMode", e.target.value || undefined)}><option value="" ?selected=${d.navMode !== "floors"}>${t("per kamer")}</option><option value="floors" ?selected=${d.navMode === "floors"}>${t("per verdieping, kamers in een uitklapmenu")}</option></select>`, Object.keys(p.hass.floors || {}).length ? t("verdiepingen komen uit Home Assistant (Instellingen › Ruimtes)") : t("nog geen verdiepingen in Home Assistant: maak ze aan bij Instellingen › Ruimtes"))}
+        ${field(t("Rijen kaarten"), pills([{ v: "", l: t("1 rij") }, { v: "2", l: t("2 rijen") }], d.cardRows === 2 ? "2" : "", "", v => set("cardRows", v ? 2 : undefined)), t("op een groot scherm; de kaarten worden kleiner om te passen, op een laag scherm blijft het één rij"))}
         ${field(t("Balk op telefoon"), pills([{ v: "", l: t("onderaan") }, { v: "top", l: t("bovenaan") }], d.phoneNav, "", v => set("phoneNav", v)), t("onderaan: thuis, kamers, twee sneltoetsen en meer; bovenaan: menu- en zoekknop in de bovenbalk zoals in 3.0"))}
         ${d.phoneNav !== "top" ? [0, 1].map(i => field(t("Sneltoets {n}", { n: i + 1 }), html`<select @change=${e => { const cur = d.bottomTabs || ["sensoren", "energie"]; const next = [...cur]; next[i] = e.target.value; set("bottomTabs", next); }}><option value="" ?selected=${(d.bottomTabs || ["sensoren", "energie"])[i] === ""}>${t("geen")}</option>${Object.entries(PAGES).map(([k, v]) => html`<option value=${k} ?selected=${(d.bottomTabs || ["sensoren", "energie"])[i] === k}>${t(v.label)}</option>`)}</select>`, i === 0 ? t("pagina's in de balk onderaan, naast de kamers") : "")) : nothing}
         ${d.navMode === "floors" ? field(t("Menu op telefoon"), html`<select @change=${e => set("navExpand", e.target.value ? true : undefined)}><option value="" ?selected=${!d.navExpand}>${t("verdieping uitklappen met tikken")}</option><option value="1" ?selected=${!!d.navExpand}>${t("alle verdiepingen uitgeklapt")}</option></select>`, t("hoe de kamers in het menu op telefoon en tablet staan")) : nothing}
@@ -293,7 +295,7 @@ export const settingsStyles = `
   .settings .actions button.pulse{animation:pulse 1.6s ease-in-out infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}50%{box-shadow:0 0 0 8px rgba(255,255,255,0)}}
   @media (max-width:900px){
-    .settings.page{padding-top:calc(96px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))}   /* no eyebrow line above the title here, so less room under the top bar */
+    .settings.page{padding-top:24px}   /* no eyebrow line above the title here, so less room under the top bar */
     .settings .phead{margin-bottom:20px}
     .settings .sbody{grid-template-columns:1fr}
     .settings .tabs{flex-direction:row;overflow-x:auto;position:static;scrollbar-width:none;padding-bottom:2px}

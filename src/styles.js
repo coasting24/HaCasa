@@ -64,7 +64,13 @@ export const styles = css`
   .ham{width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.12);backdrop-filter:blur(16px);color:#fff;cursor:pointer;display:grid;place-items:center;flex:none}
   .ham ha-icon{--mdc-icon-size:20px}
   .pill{border-radius:999px;background:rgba(255,255,255,.10);backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);border:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 10px 30px rgba(0,0,0,.18)}
-  .links{position:absolute;left:50%;top:0;transform:translateX(-50%);display:flex;gap:2px;padding:4px;max-width:calc(100% - 560px);overflow:auto;scrollbar-width:none}
+  .links{position:absolute;left:50%;top:0;transform:translateX(-50%);display:flex;gap:2px;padding:4px;max-width:calc(100% - 560px);width:max-content;overflow:visible}   /* max-content: left:50% would otherwise halve the room it may take */
+  /* one row of rooms; the ones that don't fit go under the "+N" pill (#195), "Meer" and search stay put (fitRooms() measures the wrap) */
+  .links .rl{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:0 1 auto}
+  .links .ovf b{font-weight:700}
+  @media (min-width:901px){ .links .rl>a.ovh,.links .ovf.ovh,.links .ovf .dd>a.ovh{display:none} }
+  .links a.more{flex:none;padding:0 8px}
+  .links a.more + a.search{width:28px}   /* More and search sit together after the divider */
   .links a{font-size:clamp(12px,1vw,14px);white-space:nowrap;font-weight:600;padding:0 clamp(8px,.85vw,14px);height:36px;display:flex;align-items:center;border-radius:999px;color:var(--fg-2);cursor:pointer;transition:background .2s,color .2s}
   .links a:hover{background:rgba(255,255,255,.08);color:#fff}
   .links a.active{background:rgba(255,255,255,.26);color:#fff;font-weight:700}
@@ -91,21 +97,21 @@ export const styles = css`
   @media (hover:hover) and (min-width:901px){ .links .fl:hover .dd{display:flex} .links .fl:hover>a ha-icon{transform:rotate(180deg)} }
   @media (max-width:1700px){ .links a{padding:0 clamp(6px,.75vw,12px)} .nav{--navgap:clamp(8px,1.1vw,14px)} }
   @media (max-width:1200px){ .links a{padding:0 clamp(6px,.8vw,12px);font-size:clamp(11px,1vw,13px)} .nav{--navgap:clamp(8px,1.2vw,14px)} }
-  .people{display:inline-flex;align-items:center;gap:7px;padding:0 14px 0 12px;cursor:pointer;font-size:14px;font-weight:700}
-  .people ha-icon{--mdc-icon-size:18px}
-  .people .pc small{font-weight:700;color:var(--fg-3);font-size:inherit}
-  .people + .alarm{margin-left:calc(8px - var(--navgap))}
-  .alarm{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;padding:0 16px;cursor:pointer;white-space:nowrap}
-  .alarm ha-icon{--mdc-icon-size:17px}
-  .alarm i{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.4;flex:none}
-  .alarm.off i{background:#fff;opacity:.4;box-shadow:none}
-  .alarm.armed{background:rgba(255,255,255,.4)}
-  .alarm.armed i{background:#f2b63a;opacity:1;box-shadow:0 0 8px rgba(242,182,58,.7)}
-  .alarm.home i{background:#8fd16a;opacity:1;box-shadow:0 0 8px rgba(143,209,106,.7)}
-  .alarm.arming i{background:#f2b63a;opacity:1;animation:blink 1s ease-in-out infinite}
-  .alarm.triggered{background:rgba(242,122,92,.6)}
-  .alarm.triggered i{background:#f27a5c;opacity:1;animation:blink .5s ease-in-out infinite}
-  .alarm.unavailable i{opacity:.3}
+  .people.pill{display:inline-flex;align-items:center;gap:7px;padding:0 14px 0 12px;cursor:pointer;font-size:14px;font-weight:700}
+  .people.pill ha-icon{--mdc-icon-size:18px}
+  .people.pill .pc small{font-weight:700;color:var(--fg-3);font-size:inherit}
+  .people.pill + .alarm.pill{margin-left:calc(8px - var(--navgap))}
+  .alarm.pill{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;padding:0 16px;cursor:pointer;white-space:nowrap}
+  .alarm.pill ha-icon{--mdc-icon-size:17px}
+  .alarm.pill i{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.4;flex:none}
+  .alarm.pill.off i{background:#fff;opacity:.4;box-shadow:none}
+  .alarm.pill.armed{background:rgba(255,255,255,.4)}
+  .alarm.pill.armed i{background:#f2b63a;opacity:1;box-shadow:0 0 8px rgba(242,182,58,.7)}
+  .alarm.pill.home i{background:#8fd16a;opacity:1;box-shadow:0 0 8px rgba(143,209,106,.7)}
+  .alarm.pill.arming i{background:#f2b63a;opacity:1;animation:blink 1s ease-in-out infinite}
+  .alarm.pill.triggered{background:rgba(242,122,92,.6)}
+  .alarm.pill.triggered i{background:#f27a5c;opacity:1;animation:blink .5s ease-in-out infinite}
+  .alarm.pill.unavailable i{opacity:.3}
   @keyframes blink{0%,100%{opacity:1;box-shadow:0 0 8px rgba(242,182,58,.8)}50%{opacity:.25;box-shadow:none}}
   .time{align-items:center;justify-content:center;white-space:nowrap}
   .time b{font-size:19px;font-weight:800;letter-spacing:-.4px}
@@ -197,6 +203,8 @@ export const styles = css`
   :host(.calm) .bg:not(.out){animation:fadeIn .4s ease-out both}
   :host(.perf) .strip .card{--hcn-tint:var(--card)}
   :host(.perf) .strip .card:not(.appart):not(.art){backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(var(--hcn-tint),var(--hcn-tint)),var(--bgblur) var(--bgat,0 0)/var(--bgsize) no-repeat fixed}
+  /* desktop: the cards are zoomed (--cz) and a zoomed element measures its fixed background in zoomed px, so the photo's place on the screen is divided by the zoom, or the bitmap drifts away from the photo */
+  @media (min-width:901px){ :host(.perf:not(.in-card)) .strip .card:not(.appart):not(.art){background-position:0 0,calc(var(--bgx,0px) / var(--cz,1)) calc(var(--bgy,0px) / var(--cz,1));background-size:auto,calc(var(--bgw) / var(--cz,1)) calc(var(--bgh) / var(--cz,1))} }
   :host(.perf) .strip .card.on{--hcn-tint:var(--card-on)}
   :host(.perf) .strip .card.unavailable,:host(.perf) .strip .card.add{--hcn-tint:rgba(255,255,255,.04)}
   /* no transform on these cards: Firefox drops a fixed background to "scroll" on a transformed element, so the bitmap
@@ -219,6 +227,32 @@ export const styles = css`
     :host(.perf) .pfade.r{right:0;width:64px}
   }
   :host(.calm) .overlay{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,20,20,.72)}
+  /* two rows of cards (below): the cards sit in row wrappers, so the per-card fades of the single row cannot reach them;
+     there the original's soft shadows mark the edges instead */
+  .sfade{display:none}
+  @media (min-width:901px) and (min-height:850px){
+    :host(.rows2) .sfade{display:block;position:absolute;bottom:85px;height:calc(var(--card-h) + 12px);width:64px;pointer-events:none;z-index:2;opacity:0;transition:opacity .25s}
+    :host(.rows2) .sfade.r{right:0;background:linear-gradient(to left,rgba(0,0,0,.38),transparent);opacity:1}
+    :host(.rows2) .sfade.l{left:var(--pad);background:linear-gradient(to right,rgba(0,0,0,.38),transparent)}
+    :host(.rows2) .sfade.l.on{opacity:1}
+    :host(.rows2) .sfade.r.off{opacity:0}
+  }
+  /* desktop: a card in the row is laid out at its base size (320 × 200) and zoomed as a whole to the size the panel picked
+     (--cz, from cardScale()), so text, icons and controls keep their proportions on a smaller or bigger card */
+  @media (min-width:901px){ :host(:not(.in-card)) .strip .card{zoom:var(--cz,1);--u:1px;--card-w:320px;--card-h:200px} }
+  .cardrow{display:contents}   /* "Rijen kaarten: 2" off, a phone, or a screen too low: one row as before */
+  /* two rows of cards on a desktop screen that is tall enough: cards shrink (down to 75%) to fit under the title, the title
+     sits right above them and gets smaller on lower screens */
+  @media (min-width:901px) and (min-height:850px){
+    :host(.rows2) .strip{flex-direction:column;right:var(--pad)}   /* same margin left and right; --u comes from cardScale() */
+    :host(.rows2) .sfade.r{right:var(--pad)}
+    :host(.rows2) .strip::after{display:none}
+    :host(.rows2) .cardrow{display:flex;gap:var(--card-gap);flex:none;width:max-content}
+    :host(.rows2) .sfade{height:calc(var(--card-h) * 2 + var(--card-gap) + 12px)}
+    :host(.rows2) .etools{bottom:calc(85px + var(--card-h) * 2 + var(--card-gap) + 24px)}
+    :host(.rows2) .title{top:auto;bottom:calc(85px + var(--card-h) * 2 + var(--card-gap) + 48px);transform:none}
+    :host(.rows2) .title h1{font-size:clamp(40px, min(6.6vw, 11vh - 40px), 92px)}
+  }
   .strip.drag{cursor:grabbing;scroll-snap-type:none}
   /* layout: icon + corner text on top, name/state centred in what is left, caps line at the bottom */
   .card{flex:none;width:var(--card-w);height:var(--card-h);background:var(--card);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);border:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 12px 32px rgba(0,0,0,.18);--cp:22px;padding:var(--cp);display:grid;grid-template-columns:minmax(0,1fr) max-content;grid-template-rows:max-content 1fr max-content max-content 1fr 28px;grid-template-areas:"i c" ". ." "n n" "s s" ". ." "l l";scroll-snap-align:start;position:relative;border-radius:var(--r);overflow:hidden;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;animation:rise .55s var(--ease) both;transition:transform .25s var(--ease),background .25s,border-color .25s,padding .3s}
@@ -269,7 +303,7 @@ export const styles = css`
   .card .ctl button.down img{transform:rotate(90deg)}
   .card .ctl button ha-icon{--mdc-icon-size:22px}
   /* climate: setpoint big above the name, current temperature under it, presets bottom-left, hvac modes in a column left of up/down */
-  .card.climate{grid-template-areas:"i c" ". ." "s s" "n n" "l l" ". .";grid-template-rows:max-content 1fr max-content max-content max-content 1fr;--bt:calc(30 * var(--u));--rw:calc(44 * var(--u));padding-right:calc(var(--rw) + var(--cp) + 14px);padding-bottom:calc(var(--bt) + var(--cp) + 10px)}
+  .card.climate{grid-template-areas:"i c" ". ." "s s" "n n" "l l" ". .";grid-template-rows:max-content 1fr max-content max-content max-content 1fr;--bt:calc(30 * var(--u));--rw:calc(44 * var(--u));padding-right:calc(var(--rw) + var(--cp) + 14px);padding-bottom:calc(var(--bt) + var(--cp) + 6px)}
   .card.climate .ctl.row{position:absolute;left:var(--cp);right:auto;bottom:var(--cp);width:auto;display:flex;align-items:center;gap:4px;grid-auto-rows:auto}
   .card.climate .ctl.row .seg{height:var(--bt);padding:3px;align-items:center;margin-right:4px}
   .card.climate .ctl.row .seg button{height:100%;white-space:nowrap;padding:0 10px;font-size:calc(10 * var(--u))}
@@ -289,7 +323,7 @@ export const styles = css`
   .card.climate .seg button{height:30px;padding:0 10px;font-size:10px}
   .card.climate .n{margin-top:4px}
   .card.climate .lbl ha-icon{--mdc-icon-size:14px;margin-right:4px;vertical-align:-2px;opacity:.8}
-  .card.climate .lbl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--fg-3);margin-top:3px}
+  .card.climate .lbl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--fg-3);margin-top:3px;height:auto;display:block;min-width:0}   /* just its text line, not the 28px bottom line of other cards: that ran into the mode buttons */
   .card .seg{display:inline-flex;border-radius:999px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);padding:3px;width:max-content}
   .card .seg button{border:0;border-radius:999px;background:transparent;color:var(--fg-3);font:inherit;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;height:32px;padding:0 14px;cursor:pointer}
   .card .seg button.on{background:rgba(255,255,255,.9);color:#1d1d1f}
@@ -577,7 +611,12 @@ export const styles = css`
   .popup .swatches button.on{box-shadow:inset 0 0 0 3px #fff}
 
   /* ===== edit mode: card wrappers with hide/restore, grip and drag state; the bar at the bottom; the add tile ===== */
-  .ecard{position:relative;flex:none;scroll-snap-align:start;--cp:22px}
+  .ecard{position:relative;flex:none;scroll-snap-align:start;--cp:22px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}   /* a long press drags; no iPadOS menu (#195) */
+  .ecard .mv{position:absolute;top:14px;z-index:3;width:30px;height:30px;border:1px solid var(--line);border-radius:50%;background:rgba(255,255,255,.14);color:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+  .ecard .mv ha-icon{--mdc-icon-size:18px}
+  .ecard .mv.r{right:50px}
+  .ecard .mv.l{right:86px}
+  .ecard.lift .mv{visibility:hidden}
   .ecard>.card{pointer-events:none;animation:none;transition:transform .2s var(--ease),box-shadow .2s,background .2s}
   .ecard .shield{position:absolute;inset:0;z-index:2;cursor:grab;touch-action:pan-x;border-radius:var(--r)}
   .ecard>.card .ctl,.ecard>.card .vslider,.ecard>.card .socks,.ecard>.card .rail,.ecard>.card .lbl.steps,.ecard>.card .lbl.cols,.ecard>.card .lbl.chips,.ecard>.card .seg{visibility:hidden}   /* controls rest while editing */
@@ -673,6 +712,9 @@ export const styles = css`
     .banner.ebar{display:none}
     .ecard{--cp:14px}
     .ecard .x{top:10px;right:10px;width:28px;height:28px}
+    .ecard .mv{top:10px;width:28px;height:28px}
+    .ecard .mv.r{right:44px}
+    .ecard .mv.l{right:78px}
     .btabs.edit{padding:4px 4px 4px 18px;gap:10px}
     .btabs.edit .lbl{flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .btabs.edit .lbl ha-icon{--mdc-icon-size:16px;flex:none}
@@ -702,6 +744,8 @@ export const styles = css`
     :host(.in-card){position:relative;height:100%}
     :host{--pad:20px;--u:1px;--card-h:132px;position:fixed;inset:0;height:auto;max-height:none;overflow:hidden;overscroll-behavior:none;touch-action:none;display:flex;flex-direction:column}
     .strip,.page,.settings,.popup,.nav.open .links{touch-action:pan-y}
+    .links .rl{display:contents}   /* phone menu: the rooms are a plain list again */
+    .links .ovf{display:none}
     .nav{top:calc(20px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;height:46px;grid-column-gap:10px;animation:none}   /* hidden links and time take no column, so the pills end at the right padding */
     .nav > span:empty{display:none}
     .nav .links + *{margin-left:0}
@@ -709,14 +753,14 @@ export const styles = css`
     .logo{font-size:17px;flex:1;min-width:0}
     @media (max-width:400px){.logo .bt{display:none}}   /* small phones: the pills need the room, the home mark stays */
     /* compact glass pills: count and status dot sit inside the pill, like on desktop (no badges on top) */
-    .people{justify-self:end;min-width:44px;padding:0 13px 0 12px;justify-content:center;gap:6px}
-    .people .pc{font-size:13px}
-    .people .pc small{display:none}
-    .people + .alarm{margin-left:0}
+    .people.pill{justify-self:end;min-width:44px;padding:0 13px 0 12px;justify-content:center;gap:6px}
+    .people.pill .pc{font-size:13px}
+    .people.pill .pc small{display:none}
+    .people.pill + .alarm.pill{margin-left:0}
     .time{display:none}
-    .alarm{min-width:44px;padding:0 13px 0 12px;justify-content:center;gap:7px}
-    .alarm .al{display:none}
-    .alarm i{width:7px;height:7px}
+    .alarm.pill{min-width:44px;padding:0 13px 0 12px;justify-content:center;gap:7px}
+    .alarm.pill .al{display:none}
+    .alarm.pill i{width:7px;height:7px}
     .links{display:none}
     /* ===== bottom bar: glass pill (home · rooms · more) + detached search; the room sheet opens above it ===== */
     .bnav{position:fixed;left:var(--pad);right:var(--pad);bottom:calc(10px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));z-index:41;display:flex;gap:8px;align-items:flex-end;animation:upT .5s var(--ease) both}

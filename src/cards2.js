@@ -3,8 +3,8 @@
 // the ones that need entities picked (Settings → More cards).
 import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
-import { t, tn, locale, hc } from "./i18n.js";
-import { domain, num, isOn, unavailable, relTime, sinceText, slug } from "./util.js";
+import { t, tn, locale, timeOpts } from "./i18n.js";
+import { domain, num, isOn, unavailable, relTime, sinceText, slug, atHome } from "./util.js";
 import { pressDir, ico, anyIco, cardCfg, label, dot, camStream, uico, customActions, hasActs, infoCls, ovr } from "./cards.js";
 import { name } from "./model.js";
 import { field, select, selectDoms, text, check } from "./settings.js";
@@ -18,7 +18,7 @@ const initial = s => (s.attributes.friendly_name || s.entity_id).trim().charAt(0
 
 /* =========================================================== household =========================================================== */
 /** where a person is: home, away (with since), or the zone they are in */
-export const personWhere = s => s.state === "home" ? t("Thuis") : s.state === "not_home" ? t("Weg") : Cap(s.state.replace(/_/g, " "));
+export const personWhere = s => atHome(s) ? t("Thuis") : s.state === "not_home" ? t("Weg") : Cap(s.state.replace(/_/g, " "));
 /** Proximity (direction_of_travel + distance) or a travel-time sensor named after the person: "on the way · 12 km · 14 min" */
 export function personTravel(p, s) {
   const keys = [...new Set([s.entity_id.split(".")[1], slug(s.attributes.friendly_name || "").replace(/-/g, "_"), s.attributes.id ? String(s.attributes.id).toLowerCase() : null, ...(s.attributes.device_trackers || []).map(id => id.split(".")[1])].filter(Boolean))];
@@ -31,14 +31,14 @@ export function personTravel(p, s) {
   return bits.join(" · ");
 }
 export function peopleCard(p, h) {
-  const list = h.persons, home = list.filter(s => s.state === "home"), away = list.filter(s => s.state !== "home");
+  const hide = new Set(cardCfg(p, "people").hide || []), list = (h.everyone || h.persons).filter(s => !hide.has(s.entity_id)), home = list.filter(atHome), away = list.filter(s => !atHome(s));
   const where = s => personTravel(p, s) || (s.state === "not_home" ? t("weg sinds {t}", { t: relTime(s.last_changed) }) : personWhere(s));
   const line = away.length ? away.slice(0, 2).map(s => `${s.attributes.friendly_name} · ${where(s)}`).join(" · ") : t("Iedereen is thuis");
   return html`<div class=${classMap({ card: true, people: true, on: home.length > 0 })} ${pressDir(p, { tap: () => p.openPopup({ type: "people" }) })}>
     <div class="i">${ico("mdi:account-group-outline", "people")}</div>
     <div class="c">${t("{n} van {m} thuis", { n: home.length, m: list.length })}</div>
     <div class="n">${t("Huishouden")}</div>
-    <div class="s">${list.map(s => html`<span class=${s.state === "home" ? "" : "away"} title=${`${s.attributes.friendly_name} · ${where(s)}`}>${s.attributes.entity_picture ? html`<img src=${s.attributes.entity_picture} alt="">` : initial(s)}</span>`)}</div>
+    <div class="s">${list.map(s => html`<span class=${atHome(s) ? "" : "away"} title=${`${s.attributes.friendly_name} · ${where(s)}`}>${s.attributes.entity_picture ? html`<img src=${s.attributes.entity_picture} alt="">` : initial(s)}</span>`)}</div>
     <div class="lbl"><span>${line}</span></div>
   </div>`;
 }
@@ -68,7 +68,8 @@ export function securityPopup(p, pop, wrap, li, modes) {
     ${alarm && pop.pending ? keypad(p, pop) : alarm ? modes([{ label: t("Uit"), on: alarm.state === "disarmed", go: () => call("alarm_disarm") }, { label: t("Thuis"), on: alarm.state === "armed_home", go: () => call("alarm_arm_home") }, { label: t("Weg"), on: alarm.state === "armed_away", go: () => call("alarm_arm_away") }, { label: t("Nacht"), on: alarm.state === "armed_night", go: () => call("alarm_arm_night") }]) : nothing}
     ${open.length ? html`<div class="prow"><span>${t("Open")}</span><b>${open.length}</b></div><ul style="margin-top:8px">${open.map(e => li(h.doors.includes(e) ? "mdi:door-open" : "mdi:window-open-variant", name(hass, e), t("Open"), { on: true, sub: `${e.room.name} · ${relTime(e.state?.last_changed)}`, svg: h.doors.includes(e) ? "door" : "window_open", onclick: () => p.go(e.room) }))}</ul>` : nothing}
     ${locks.length ? html`<div class="prow"><span>${t("Sloten")}</span><b>${t("tik = vergrendelen / ontgrendelen")}</b></div><ul style="margin-top:8px">${locks.map(e => { const locked = e.state?.state === "locked"; return li(locked ? "mdi:lock" : "mdi:lock-open-variant", label(p, e), locked ? t("Op slot") : t("Open"), { on: !locked, sub: `${e.room.name} · ${relTime(e.state?.last_changed)}`, svg: locked ? "lock" : "lock_open", onclick: () => p.call("lock", locked ? "unlock" : "lock", { entity_id: e.id }) }); })}</ul>` : nothing}
-    ${cams.length ? html`<div class="prow"><span>${t("Camera's")}</span><b>${cams.length}</b></div><div class="camgrid">${cams.map(e => html`<div class="camt" @click=${() => p.openPopup({ type: "camera", s: e.state })}>${e.state?.attributes.entity_picture ? html`<hcn-cam-snap .src=${e.state.attributes.entity_picture} .stream=${camStream(e.state)} .live=${false}></hcn-cam-snap>` : nothing}<b>${label(p, e)}</b></div>`)}</div>` : nothing}`);
+    ${cams.length ? html`<div class="prow"><span>${t("Camera's")}</span><b>${cams.length}</b></div><div class="camgrid">${cams.map(e => html`<div class="camt" @click=${() => p.openPopup({ type: "camera", s: e.state })}>${e.state?.attributes.entity_picture ? html`<hcn-cam-snap .src=${e.state.attributes.entity_picture} .stream=${camStream(e.state)} .live=${false}></hcn-cam-snap>` : nothing}<b>${label(p, e)}</b></div>`)}</div>` : nothing}
+    ${pop.pending ? nothing : html`<button class="klink" style="margin-top:16px" @click=${() => p.goPath("__beveiliging__")}>${t("Beveiligingspagina openen")}</button>`}`);
 }
 
 /* =========================================================== to-do list =========================================================== */
@@ -114,7 +115,7 @@ const RATE = () => [t("Goed"), t("Matig"), t("Slecht")];
 /** the readings of a room: the air sensors plus its humidity, each with a rating */
 export function airReadings(p, r) {
   const out = r.ents.air.map(e => { const dc = e.state?.attributes.device_class, v = num(e.state?.state); return { e, dc, l: AIR[dc]?.l || dc, v, unit: e.state?.attributes.unit_of_measurement || "", rate: unavailable(e.state) ? 0 : airRate(dc, v), un: unavailable(e.state) }; });
-  if (r.hum != null) out.push({ e: r.ents.hum[0], dc: "humidity", l: t("Vocht"), v: r.hum, unit: "%", rate: airRate("humidity", r.hum), un: false });
+  if (r.hum != null) out.push({ e: r.humId ? { id: r.humId, reg: p.hass.entities?.[r.humId] || {}, state: p.hass.states[r.humId] } : r.ents.hum[0], dc: "humidity", l: t("Vocht"), v: r.hum, unit: "%", rate: airRate("humidity", r.hum), un: false });
   const order = ["carbon_dioxide", "pm25", "volatile_organic_compounds", "volatile_organic_compounds_parts", "aqi", "pm10", "pm1", "nitrogen_dioxide", "ozone", "humidity"];
   return out.sort((a, b) => order.indexOf(a.dc) - order.indexOf(b.dc));
 }
@@ -153,7 +154,7 @@ function evState(p) {
 }
 export function evCard(p) {
   const e = evState(p), c = evCfg(p), key = "ev", cfg = cardCfg(p, key);
-  const line = e.charging ? [t("Laadt"), e.powerW != null ? `${fmt(e.powerW / 1000, 1)} kW` : null, e.finAt ? t("klaar om {t}", { t: e.finAt.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) }) : null].filter(Boolean).join(" · ") : e.plugged ? t("Aangesloten, laadt niet") : t("Niet aangesloten");
+  const line = e.charging ? [t("Laadt"), e.powerW != null ? `${fmt(e.powerW / 1000, 1)} kW` : null, e.finAt ? t("klaar om {t}", { t: e.finAt.toLocaleTimeString(locale(), timeOpts()) }) : null].filter(Boolean).join(" · ") : e.plugged ? t("Aangesloten, laadt niet") : t("Niet aangesloten");
   const sw = e.sw ? html`<div class="ctl row" @click=${ev => ev.stopPropagation()}><button class=${classMap({ on: isOn(e.sw) })} @click=${() => p.call(domain(c.switch) === "input_boolean" ? "input_boolean" : "switch", "toggle", { entity_id: c.switch })}><ha-icon icon=${isOn(e.sw) ? "mdi:stop" : "mdi:ev-station"}></ha-icon>${isOn(e.sw) ? t("Stop") : t("Laden")}</button></div>` : nothing;
   return html`<div class=${classMap({ card: true, ev: true, on: e.charging, appl: !!e.sw, ...infoCls(cfg) })} style=${`--soc:${Math.max(0, Math.min(100, e.soc ?? 0))}`} ${pressDir(p, { tap: () => p.openPopup({ type: "ev" }) })}>
     <div class="i">${uico(cfg.icon, "mdi:car-electric-outline", "ev_charger")}</div>
@@ -166,7 +167,7 @@ export function evCard(p) {
   </div>`;
 }
 export function evPopup(p, wrap, li, modes) {
-  const e = evState(p), c = evCfg(p), hm = d => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() });
+  const e = evState(p), c = evCfg(p), hm = d => d.toLocaleTimeString(locale(), timeOpts());
   const row = (id, mdi, lbl, v, sub) => st(p, id) ? li(mdi, lbl, v, { sub, onclick: () => p.moreInfo(id) }) : nothing;
   return wrap(t("Auto"), e.name, [e.soc != null ? `${Math.round(e.soc)}%` : null, e.rng != null ? `${fmt(e.rng, 0)} ${st(p, c.range)?.attributes.unit_of_measurement || "km"}` : null, e.charging ? t("laadt") : e.plugged ? t("aangesloten") : t("niet aangesloten")].filter(Boolean).join(" · "), html`
     ${e.sw ? modes([{ label: isOn(e.sw) ? t("Stop met laden") : t("Start laden"), on: isOn(e.sw), go: () => p.call(domain(c.switch) === "input_boolean" ? "input_boolean" : "switch", "toggle", { entity_id: c.switch }) }], "n2") : nothing}
@@ -204,7 +205,7 @@ export function timersPopup(p, wrap, li, modes) {
   liveTick(p, "timers", active.length > 0);
   const row = s => { const left = timerLeft(s), nm = s.attributes.friendly_name || s.entity_id;
     return html`<div class=${classMap({ trow: true, on: s.state === "active" })}>
-      <div class="tn">${nm}<small>${s.state === "active" ? t("klaar om {t}", { t: new Date(s.attributes.finishes_at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) }) : s.state === "paused" ? t("gepauzeerd") : t("staat stil")}${s.attributes.duration ? ` · ${s.attributes.duration}` : ""}</small></div>
+      <div class="tn">${nm}<small>${s.state === "active" ? t("klaar om {t}", { t: new Date(s.attributes.finishes_at).toLocaleTimeString(locale(), timeOpts()) }) : s.state === "paused" ? t("gepauzeerd") : t("staat stil")}${s.attributes.duration ? ` · ${s.attributes.duration}` : ""}</small></div>
       <b class="tv">${left != null ? mmss(left) : "–"}</b>
       <div class="tb">${s.state === "active" ? html`<button @click=${() => p.call("timer", "pause", { entity_id: s.entity_id })}><ha-icon icon="mdi:pause"></ha-icon></button><button @click=${() => p.call("timer", "change", { entity_id: s.entity_id, duration: dur(5) })}>+5</button><button @click=${() => p.call("timer", "cancel", { entity_id: s.entity_id })}><ha-icon icon="mdi:close"></ha-icon></button>`
         : s.state === "paused" ? html`<button class="on" @click=${() => p.call("timer", "start", { entity_id: s.entity_id })}><ha-icon icon="mdi:play"></ha-icon></button><button @click=${() => p.call("timer", "cancel", { entity_id: s.entity_id })}><ha-icon icon="mdi:close"></ha-icon></button>`
@@ -267,7 +268,7 @@ export function gardenPopup(p, wrap, li, modes) {
   return wrap(t("Tuin"), on.length ? tn(on.length, "{n} zone aan", "{n} zones aan") : t("Uit"), t("tik op een zone om te starten of stoppen"), html`
     ${on.length ? modes([{ label: t("Alles uit"), go: () => on.forEach(s => zoneToggle(p, s.entity_id)) }], "n2") : nothing}
     <ul>${zones.map(s => li(zoneOn(s) ? "mdi:water" : "mdi:water-outline", cardCfg(p, s.entity_id).name || s.attributes.friendly_name, zoneOn(s) ? t("Aan") : t("Uit"), { on: zoneOn(s), sub: sinceText(s.last_changed), onclick: () => zoneToggle(p, s.entity_id) }))}
-      ${next ? li("mdi:calendar-clock", t("Volgende beurt"), next.attributes.device_class === "timestamp" && !isNaN(new Date(next.state)) ? new Date(next.state).toLocaleString(locale(), { weekday: "short", hour: "2-digit", minute: "2-digit", ...hc() }) : next.state, { onclick: () => p.moreInfo(next.entity_id) }) : nothing}
+      ${next ? li("mdi:calendar-clock", t("Volgende beurt"), next.attributes.device_class === "timestamp" && !isNaN(new Date(next.state)) ? new Date(next.state).toLocaleString(locale(), timeOpts({ weekday: "short", hour: "2-digit", minute: "2-digit" })) : next.state, { onclick: () => p.moreInfo(next.entity_id) }) : nothing}
       ${rain ? li("mdi:weather-rainy", t("Regen vandaag"), `${rain.state} ${rain.attributes.unit_of_measurement || "mm"}`, { onclick: () => p.moreInfo(rain.entity_id) }) : nothing}</ul>`);
 }
 
@@ -276,7 +277,11 @@ const zoneLike = s => /sproei|irrig|beregen|water|tuin|garden|zone|kraan|valve|s
 /** the fields the Car, Garden and List cards need, drawn inside the card settings form (saved as cards[key]) */
 export function panelCardFields(p, key, draft, upd, row) {
   const hass = p.hass, W = s => ["W", "kW"].includes(s.attributes.unit_of_measurement), PCT = s => s.attributes.unit_of_measurement === "%";
-  const set = (k2, v) => upd({ [k2]: v || undefined });
+  const set = (k2, v) => upd({ [k2]: (Array.isArray(v) ? v.length : v) ? v : undefined });
+  if (key === "people") {
+    const all = Object.values(hass.states).filter(s => domain(s.entity_id) === "person").sort((x, y) => (x.attributes.friendly_name || "").localeCompare(y.attributes.friendly_name || "")), hide = draft.hide || [];
+    return row(t("Personen"), html`<div class="chips">${all.map(s => { const off = hide.includes(s.entity_id); return html`<button class=${off ? "" : "on"} title=${s.entity_id} @click=${() => set("hide", off ? hide.filter(x => x !== s.entity_id) : [...hide, s.entity_id])}>${s.attributes.friendly_name || s.entity_id}</button>`; })}</div>`, t("tik om iemand te verbergen, bijv. een gastaccount"));
+  }
   if (key === "todo") return row(t("Lijst"), select(hass, "todo", draft.entity, v => set("entity", v), { empty: t("automatisch (boodschappenlijst)") }), t("elke to-do-entiteit, ook de boodschappenlijst van Home Assistant"));
   if (key === "ev") return html`
     ${row(t("Accu"), select(hass, "sensor", draft.battery, v => set("battery", v), { empty: t("kies"), filter: PCT }), t("de kaart verschijnt zodra de accu is gekozen"))}

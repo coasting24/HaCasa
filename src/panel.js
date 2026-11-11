@@ -1,7 +1,7 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
 import { blurredBg, edgeBg } from "./perf.js";
-import { t, locale, setLang, setTimeFormat, pickLang, inText, hc } from "./i18n.js";
+import { t, locale, setLang, setTimeFormat, pickLang, inText, timeOpts, hourLabel } from "./i18n.js";
 import { LitElement, html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -11,7 +11,7 @@ import { lightCard, switchCard, mediaCard, coverCard, climateCard, sensorCard, s
 import { editStrip, editBar, editTools, canEdit } from "./edit.js";
 import { renderPopup } from "./popups.js";
 import { renderSettings, loadUserConfig, saveUserConfig, mergeConfig } from "./settings.js";
-import { renderPage, PAGES } from "./pages.js";
+import { renderPage, PAGES, PAGE_ALIAS } from "./pages.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
 import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
 import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, anyIco, wxDays } from "./cards.js";
@@ -28,7 +28,7 @@ import { BASE, TAG, icon, slug, isOn, unavailable, isDown, comfort, humidityText
 import { ghost, tw, afterRender, setMotion } from "./motion.js";
 
 /** the address of each overview page and the settings: English, like HA's own (/config/system); the keys stay the panel's Dutch ids */
-const PAGE_URL = { automatiseringen: "automations", sensoren: "sensors", energie: "energy", cameras: "cameras", systeem: "system", instellingen: "settings" };
+const PAGE_URL = { automatiseringen: "automations", sensoren: "sensors", energie: "energy", beveiliging: "security", systeem: "system", instellingen: "settings" };
 const PAGE_KEY = Object.fromEntries(Object.entries(PAGE_URL).map(([k, v]) => [v, k]));
 
 /** numbers with their unit (6,8 kWh · 50% · 12 min · 14:02) rendered white inside a notice */
@@ -38,7 +38,7 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 /** "Thuis." -> Thuis + an accent dot; any other title stays as it is */
 const brandTitle = s => html`<span class="bt">${s}</span>`;
 
-const eventWhenShort = ev => ev.allDay ? t("hele dag") : ev.start.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() });
+const eventWhenShort = ev => ev.allDay ? t("hele dag") : ev.start.toLocaleTimeString(locale(), timeOpts());
 const BUILD = Math.floor(Date.now() / 3600000).toString(36);   // changes every hour: replaced photos show up after a reload
 const FONT = "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap";
 const DEFAULT_CONFIG = { rooms: "auto", roomImage: "/local/images/rooms/{slug}.jpg", homeImage: "/local/images/rooms/home.jpg", home: {}, more: [] };   // no room cap by default (#146); Settings → Kamers can set one
@@ -73,6 +73,7 @@ class HacasaNova extends LitElement {
     this._lastActivity = Date.now();
     this._onResize = () => { clearTimeout(this._rsT); this._rsT = setTimeout(() => this.requestUpdate(), 150); }; addEventListener("resize", this._onResize);
     this._mq = matchMedia("(max-width:900px)"); this._mq.addEventListener("change", this._onResize);   // phone ⇄ desktop layout is decided in render()
+    this._ro = new ResizeObserver(([e]) => { const w = Math.round(e.contentRect.width); if (w !== this._hostW) { this._hostW = w; this.requestUpdate(); } }); this._ro.observe(this);   // the HA sidebar opening changes the panel's width, not the window's
     this._idleT = setInterval(() => { const m = +(this.config.idleMinutes ?? 0); if (m > 0 && !this.idle && Date.now() - this._lastActivity > m * 60000) this.idle = true; }, 5000);
     // swipe between rooms (touch only, outside the card strip)
     this._swipeDown = e => { if (e.pointerType !== "touch" || e.composedPath().some(el => el.classList && (el.classList.contains("strip") || el.classList.contains("overlay") || el.classList.contains("page") || el.classList.contains("settings") || el.classList.contains("nav")))) { this._sw = null; return; } this._sw = { x: e.clientX, y: e.clientY, t: Date.now() }; };
@@ -82,7 +83,7 @@ class HacasaNova extends LitElement {
     this.addEventListener("pointerdown", e => { if (this.navFloor != null && !this.drawer && !e.composedPath().some(el => el.classList?.contains("fl"))) this.navFloor = null; });
     this.addEventListener("pointerdown", e => { if (this.drawer && !e.composedPath().some(el => el.classList?.contains("links") || el.classList?.contains("rtab"))) this.drawer = false; });
   }
-  disconnectedCallback() { super.disconnectedCallback(); clearTimeout(this._userRetry); if (this.userConfig === undefined) this._userLoaded = false; clearInterval(this._clock); clearInterval(this._ticker); clearInterval(this._idleT); removeEventListener("keydown", this._onKey); removeEventListener("resize", this._onResize); this._mq?.removeEventListener("change", this._onResize); if (this._onHash) removeEventListener("hashchange", this._onHash); for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"]) removeEventListener(ev, this._activity); this._unsubNotif?.(); }
+  disconnectedCallback() { super.disconnectedCallback(); this._ro?.disconnect(); clearTimeout(this._userRetry); if (this.userConfig === undefined) this._userLoaded = false; clearInterval(this._clock); clearInterval(this._ticker); clearInterval(this._idleT); removeEventListener("keydown", this._onKey); removeEventListener("resize", this._onResize); this._mq?.removeEventListener("change", this._onResize); if (this._onHash) removeEventListener("hashchange", this._onHash); for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"]) removeEventListener(ev, this._activity); this._unsubNotif?.(); this._unsubNotif = null; }
   wake() { this.idle = false; this._lastActivity = Date.now(); }
   /** go to the previous/next room in nav order (home is before the first room) */
   swipe(dir) { const order = [null, ...this.rooms]; const i = order.findIndex(r => (r?.id || null) === (this.room?.id || null)); const n = order[i + dir]; if (n !== undefined) this.go(n); }
@@ -175,10 +176,13 @@ class HacasaNova extends LitElement {
   willUpdate(changed) {
     if (!this.hass) return;
     setLang(this.config.language || pickLang(this.hass.language || this.hass.locale?.language));
-    setTimeFormat(this.hass.locale?.time_format, this.config.language ? locale() : this.hass.locale?.language || this.hass.language);   // a fixed panel language also sets the clock style
+    if (this.settings || this.page) this.classList.remove("rows2");   // set per view by stripRows()
+    { const sc = this.cardScale(); if (!sc) { this.style.removeProperty("--u"); this.style.removeProperty("--cz"); } else if (!this.classList.contains("rows2")) { this.style.setProperty("--u", sc.u1 + "px"); this.style.setProperty("--cz", sc.u1); } }   // card size for pages and popups too
+    if (setTimeFormat(this.hass.locale, this.config.timeFormat)) this.now = clock();   // a changed time format shows at once, not at the next tick
     const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); this.classList.toggle("calm", !!this.config.perfMode); setMotion(!still); setWxStyle(this.config.wxIcons);
     if (changed.has("popup")) { const was = changed.get("popup"); if (was && !this.popup) ghost(this, ".overlay", "pop-out", 200); else if (was?.menu && this.popup && !this.popup.menu && this.popup.type === was.type) ghost(this, ".pmenu", "menu-out", 170, (c, el) => { const r = el.getBoundingClientRect(); c.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;right:auto;bottom:auto;width:${r.width}px`; }); }
-    if (!this._userLoaded) { this._userLoaded = true; this.loadUser(); this._unsubNotif = subscribeNotifications(this.hass, list => { this.notifications = list; }); this.subscribeTemplates(); }
+    if (!this._userLoaded) { this._userLoaded = true; this.loadUser(); this.subscribeTemplates(); }
+    if (!this._unsubNotif && this.isConnected) { const sub = subscribeNotifications(this.hass, list => { this.notifications = list; }); this._unsubNotif = () => Promise.resolve(sub).then(f => typeof f === "function" && f()).catch(() => {}); }
     this.rooms = buildRooms(this.hass, this.config);
     this.home = buildHome(this.hass, this.config, this.rooms, this.notifications);
     watchTriggers(this);
@@ -187,10 +191,10 @@ class HacasaNova extends LitElement {
     if (!this._hinted && this.userConfig !== undefined && this.userConfig?.setupDone && !this.userConfig?.hintSeen) { this._hinted = true; this.showToast(t("Tik op een kaart om te schakelen, houd vast voor details. Via ⋯ in de popup stel je dit per kaart in."), 9000, "info"); this.saveUser({ hintSeen: true }); }
     if (this.home.calendars.length && (!this._eventsAt || Date.now() - this._eventsAt > 10 * 60000)) this.loadEvents();
     if (this.home.weather && (!this._wxAt || Date.now() - this._wxAt > 30 * 60000 || this._wxId !== this.home.weather.entity_id)) this.loadWx();
-    const seg = (this.route?.path || "/").split("/").filter(Boolean)[0];
-    const pk = PAGE_KEY[seg] || seg;   // English addresses; the old Dutch ones (bookmarks, wall tablets) still open
-    this.settings = pk === "instellingen";
-    this.page = PAGES[pk] ? pk : null;
+    const seg0 = (s => { try { return s && decodeURIComponent(s); } catch { return s; } })((this.route?.path || "/").split("/").filter(Boolean)[0]);
+    const seg = PAGE_KEY[seg0] || PAGE_ALIAS[seg0] || seg0;   // English addresses; the old Dutch ones (bookmarks, wall tablets) and upstream's aliases still open
+    this.settings = seg === "instellingen";
+    this.page = PAGES[seg] ? seg : null;
     // a draft made before the user settings arrived (settings opened by reload) is rebuilt once they do, so Save never writes defaults over them
     if (this.settings && (!this.draft || (this._draftEarly && this.userConfig !== undefined))) { this.draft = JSON.parse(JSON.stringify(this.config)); this._draftEarly = this.userConfig === undefined; }
     if (!this.settings) this.draft = null;
@@ -208,6 +212,7 @@ class HacasaNova extends LitElement {
     afterRender(this);
     for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; this._fadeStrip(st); }   // cards may have changed: measure again
     this._perf();
+    this.fitRooms(); this.stripEnd();
   }
 
   /* ---------- actions ---------- */
@@ -222,7 +227,7 @@ class HacasaNova extends LitElement {
   pickIcon(cur, set, ph) { this.iconPick = { cur, set, ph, q: "" }; this.updateComplete.then(() => this.shadowRoot?.querySelector(".ipick input")?.focus()); }
   /** navigate inside the panel: hash in card mode, history otherwise */
   nav(path) { if (this.hashMode) location.hash = "#" + (path || "/"); else navigate(path); }
-  go(room) { this.drawer = false; this.nav(`${this.basePath()}/${room ? room.slug : ""}`); this.scrollStrip(0); }
+  go(room) { this.drawer = false; this.nav(`${this.basePath()}/${room ? encodeURIComponent(room.slug) : ""}`); this.scrollStrip(0); }
   goPath(path) {
     this.popup = null; this.drawer = false;
     const m = /^__(\w+)__$/.exec(path || "");
@@ -356,7 +361,9 @@ class HacasaNova extends LitElement {
   }
   /** photo for a room (or home): the first candidate path that loads, trying .jpg/.jpeg/.png/.webp for each */
   bgUrl(room) {
-    const ver = u => u + (u.includes("?") ? "" : "?v=" + BUILD);
+    // no cache-bust for an area picture from HA: a new upload gets a new image id, so its address never shows a stale photo
+    // and the (full size) original is not downloaded again every hour
+    const ver = u => u.includes("?") || u.startsWith("/api/image/serve/") ? u : u + "?v=" + BUILD;
     const base = room ? room.images || [room.image] : [this.homeImage];
     const all = base.filter(Boolean).flatMap(u => {
       const m = u.match(/^(.*)\.(jpe?g|png|webp)$/i);
@@ -412,7 +419,11 @@ class HacasaNova extends LitElement {
     if (!bg) { this._perfKey = null; this.classList.remove("perf"); return; }
     // the bitmap is anchored to the screen (fixed attachment): it only needs to know where the photo is on screen
     const r = bg.getBoundingClientRect(), at = `${Math.round(r.left)}px ${Math.round(r.top)}px`, size = `${Math.round(r.width)}px ${Math.round(r.height)}px`;
-    if (this._perfAt !== at + size) { this._perfAt = at + size; this.style.setProperty("--bgat", at); this.style.setProperty("--bgsize", size); }
+    if (this._perfAt !== at + size) {
+      this._perfAt = at + size; this.style.setProperty("--bgat", at); this.style.setProperty("--bgsize", size);
+      // the same numbers one by one: a zoomed card (3.2's card scale, --cz) lays its fixed background out in its own zoomed px
+      for (const [k, v] of [["--bgx", r.left], ["--bgy", r.top], ["--bgw", r.width], ["--bgh", r.height]]) this.style.setProperty(k, Math.round(v) + "px");
+    }
     const key = `${bg.className}|${bg.getAttribute("style")}|${size}`;
     if (key === this._perfKey) { if (this.classList.contains("perf")) this._edges(bg); return; }
     this._perfKey = key;
@@ -453,7 +464,9 @@ class HacasaNova extends LitElement {
    *  is scrolled (eased in/out over .25 s), 64 px wide, as strong as the old .38 shade. Only the rendering changed:
    *  the cards turn see-through there instead of a dark gradient lying on top of them. */
   _stripScroll(e) {
-    const st = e.currentTarget;
+    const st = e.currentTarget, on = st.scrollLeft > 4;
+    if (on !== !!this.stripScrolled) this.stripScrolled = on;   // the left shadow of two rows (stripFades)
+    this.stripEnd();
     if (this.classList.contains("perf")) { st.classList.toggle("scrolled", st.scrollLeft > 4); return; }   // fixed edge strips (styles.js)
     this._fadeTick(st);
   }
@@ -475,7 +488,8 @@ class HacasaNova extends LitElement {
     // phone: grid, no row edges; performance mode: fixed edge strips showing the background instead (per-card masks change
     // every scroll frame and make each edge card repaint with its picture: measured, that was most of the mode's scroll
     // cost; a mask on the scrolling row costs as much)
-    if (innerWidth <= 900 || this.classList.contains("perf")) {
+    // two rows: the cards sit in .cardrow wrappers and the row's edges get the original's shadows (stripFades) instead
+    if (innerWidth <= 900 || this.classList.contains("perf") || this.classList.contains("rows2")) {
       for (const c of st.querySelectorAll("[data-fm]")) { c.removeAttribute("data-fm"); c.__g = ""; }
       st.classList.toggle("scrolled", st.scrollLeft > 4); return;
     }
@@ -484,7 +498,9 @@ class HacasaNova extends LitElement {
     // then only writes, so a scroll frame costs no style or layout pass
     if (!st.__geo || st.__geo.n !== st.children.length) st.__geo = {
       n: st.children.length, W: st.clientWidth, P: parseFloat(getComputedStyle(st).paddingLeft) || 0,
-      items: [...st.children].map(w => ({ c: w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, l: w.offsetLeft, cw: w.offsetWidth })),
+      // positions as drawn: the cards may be zoomed (--cz, upstream's card scale), and offsetLeft / offsetWidth do not see the zoom
+      items: (r0 => [...st.children].map(w => { const c = w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, r = w.getBoundingClientRect();
+        return { c, l: r.left - r0 + st.scrollLeft, cw: r.width, z: parseFloat(getComputedStyle(c).zoom) || 1 }; }))(st.getBoundingClientRect().left),
     };
     if (!st.__geo.fresh) { st.__geo.fresh = true; for (const { c } of st.__geo.items) if (c.__g || c.hasAttribute("data-fm")) c.__g = "?"; }   // after a render: write every mask once more
     // P: the strip's left padding, room for the first card's shadow; the fade starts at the old edge (P), as the
@@ -492,7 +508,7 @@ class HacasaNova extends LitElement {
     const { W, P, items } = st.__geo, F = 64, S = .38, x = st.scrollLeft, kl = st.__fk;
     const O = 64;   // the mask reaches O px past each side of the card, so its shadow is not masked away (styles.js: --o)
     const lerp = (p, q, t) => p + (q - p) * Math.max(0, Math.min(1, t));
-    for (const { c, l, cw } of items) {
+    for (const { c, l, cw, z } of items) {
       const a = l - x, b = a + cw;
       const left = kl > 0 && a < P + F, right = b > W - F;
       if (!left && !right) { if (c.__g) { c.removeAttribute("data-fm"); c.__g = ""; } continue; }
@@ -506,15 +522,48 @@ class HacasaNova extends LitElement {
         * (!left ? 1 : v <= m0 ? a0 : v <= mp ? lerp(a0, al, (v - m0) / (mp - m0)) : lerp(al, 1, (v - mp) / (m1 - mp)))
         * (!right ? 1 : lerp(1, ar, (v - m2) / (m3 - m2)));
       // only stops inside the mask image: Firefox renders a gradient whose stops lie far outside it as one flat colour
-      const lo = -O, hi = cw + O, xs = [lo, hi, ...(left ? [m0, mp, m1] : []), ...(right ? [m2, m3] : [])]
+      // all of this is in screen px; the mask lies in the card's own (unzoomed) px, so stops are divided by its zoom
+      const lo = -O * z, hi = cw + O * z, xs = [lo, hi, ...(left ? [m0, mp, m1] : []), ...(right ? [m2, m3] : [])]
         .filter(v => v >= lo && v <= hi).sort((p, q) => p - q);
-      const g = `linear-gradient(to right,${[...new Set(xs)].map(v => `rgba(0,0,0,${alpha(v).toFixed(3)}) ${(v + O).toFixed(1)}px`).join(",")})`;
+      const g = `linear-gradient(to right,${[...new Set(xs)].map(v => `rgba(0,0,0,${alpha(v).toFixed(3)}) ${(v / z + O).toFixed(1)}px`).join(",")})`;
       if (g === c.__g) continue;   // unchanged (e.g. the right edge while the row stands still): no write, no repaint
       if (!c.__g) c.setAttribute("data-fm", "");
       c.__g = g; c.style.setProperty("--g", g);
     }
   }
 
+  /** the right-hand fade only while there are cards further along */
+  stripEnd() { const st = this.renderRoot.querySelector(".strip"), f = this.renderRoot.querySelector(".sfade.r"); if (st && f) f.classList.toggle("off", st.scrollLeft >= st.scrollWidth - st.clientWidth - 4); }
+  /** "Rijen kaarten: 2": the first half of the cards on the top row, the rest below; CSS decides whether two rows fit (desktop, tall enough) */
+  /** card size on a desktop: --u (1 = a 320 × 200 card) so that five cards and their gaps fill the width between the page
+      margins, the fifth ending where the weather block ends; never taller than the screen allows (u2: two rows under the
+      title) and between .8 and 1.5. Phones and the dashboard card keep the CSS value. */
+  cardScale() {
+    if (this.classList.contains("in-card") || innerWidth <= 900) return null;
+    const pad = .08 * innerWidth, inner = (this._hostW || innerWidth) - 2 * pad, uW = (inner - 4 * 6) / 5 / 320;
+    const MIN = .9, cl = v => Math.min(1.5, Math.max(MIN, v));   // everything in a card scales with it (zoom), so not smaller than 90%
+    // two rows always run exactly from the title to the end of the weather block: the largest card that still fits the
+    // screen height (and 1.5) decides how many go in a row (5 on a 1080p screen), then the card grows a little to fill it;
+    // one column fewer when that would make it smaller than MIN
+    const fill = c => (inner - (c - 1) * 6) / c / 320, cap = Math.min(1.5, (innerHeight - 480) / 412);
+    let cols = Math.max(1, Math.ceil((inner + 6) / (320 * cap + 6) - 1e-6));
+    if (cols > 1 && fill(cols) < MIN) cols--;
+    return { inner, u1: cl(Math.min(uW, .12 * innerHeight / 100)), u2: fill(cols), cols };
+  }
+  /** cards that fit side by side in the width between the margins at scale u */
+  cardsFit(inner, u) { return Math.max(1, Math.floor((inner + 6) / (320 * u + 6) + 1e-6)); }
+  stripRows(list) {
+    const sc = this.cardScale(), n = list.length;
+    // two rows only when the option is on, the screen is tall enough (same test as the CSS) and the cards don't fit in one row
+    const two = !!sc && this.config.cardRows === 2 && matchMedia("(min-height:850px)").matches && n > this.cardsFit(sc.inner, sc.u1);
+    this.classList.toggle("rows2", two);
+    if (sc) { const u = two ? sc.u2 : sc.u1; this.style.setProperty("--u", u + "px"); this.style.setProperty("--cz", u); }
+    if (!two) return list;
+    // the top row is filled first; more than two rows' worth: split evenly and both rows scroll
+    const f = sc.cols, k = n > 2 * f ? Math.ceil(n / 2) : Math.min(f, n - 1);
+    return html`<div class="cardrow">${list.slice(0, k)}</div><div class="cardrow">${list.slice(k)}</div>`;
+  }
+  stripFades() { return html`<div class=${classMap({ sfade: true, l: true, on: !!this.stripScrolled })}></div><div class="sfade r"></div>`; }
   /** energy page: today's use and return per hour, power peak and a 3 h sparkline */
   async loadEnergyToday() {
     const en = this.home.energy; this.energyHist = { ...(this.energyHist || {}), at: Date.now() };
@@ -522,7 +571,7 @@ class HacasaNova extends LitElement {
     const [use, sun, pw, sol] = await Promise.all([en.today ? hourlyToday(this.hass, en.today.entity_id) : null, en.returned ? hourlyToday(this.hass, en.returned.entity_id) : null, en.power ? fetchNumeric(this.hass, [en.power.entity_id], 24) : null, solarId ? hourlyToday(this.hass, solarId) : null]);
     const rows = pw?.[en.power?.entity_id] || [], peak = rows.length ? rows.reduce((a, b) => b.v > a.v ? b : a) : null;
     if (en.power) this.netHist = { ...(this.netHist || {}), [en.power.entity_id]: rows.filter(r => r.t > Date.now() - 3 * 3600000) };
-    this.energyHist = { at: Date.now(), use: use || [], sun: sun || [], sol: sol || [], peak: peak ? { v: peak.v, t: new Date(peak.t).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() }) } : null };
+    this.energyHist = { at: Date.now(), use: use || [], sun: sun || [], sol: sol || [], peak: peak ? { v: peak.v, t: new Date(peak.t) } : null };
   }
   /** plug with a meter: 3 h of power for the sparkline, today's kWh per hour from the recorder */
   async loadPlug(id, powerId, energyId) {
@@ -544,18 +593,18 @@ class HacasaNova extends LitElement {
   }
   /** 24-hour on/off history of a light for the "today" card bottom: minutes on per clock hour, total and switch count */
   async loadLightHist(id) {
-    const cur = this.lightHist?.[id]; if (cur && Date.now() - cur.at < 10 * 60000) return; if (this._lhBusy?.has(id)) return;
+    const cur = this.lightHist?.[id]; if (cur?.hits && Date.now() - cur.at < 10 * 60000) return; if (this._lhBusy?.has(id)) return;
     (this._lhBusy ||= new Set()).add(id);
     const rows = (await fetchHistory(this.hass, id, 24)) || [];
     rows.sort((a, b) => a.t - b.t);
-    const now = Date.now(), start = now - 24 * 3600000, bars = Array(24).fill(0), steps = Array(96).fill(0); let onMin = 0, count = 0;
+    const now = Date.now(), start = now - 24 * 3600000, bars = Array(24).fill(0), steps = Array(96).fill(0), hits = Array(24).fill(0); let onMin = 0, count = 0;   // hits: times it turned on per hour, oldest first
     for (let i = 0; i < rows.length; i++) {
       if (rows[i].s !== "on") continue;
-      if (i && rows[i - 1].s !== "on") count++; else if (!i && rows[i].t > start) count++;
+      if ((i && rows[i - 1].s !== "on") || (!i && rows[i].t > start)) { count++; hits[Math.max(0, Math.min(23, Math.floor((rows[i].t.getTime() - start) / 3600000)))]++; }
       const a = Math.max(start, rows[i].t.getTime()), b = Math.min(now, rows[i + 1] ? rows[i + 1].t.getTime() : now);
       for (let x = a; x < b; x += 60000) { bars[new Date(x).getHours()] += 1; steps[Math.min(95, Math.floor((x - start) / 900000))] += 1 / 15; onMin++; }
     }
-    this.lightHist = { ...(this.lightHist || {}), [id]: { at: Date.now(), bars: bars.map(m => m / 60), steps: steps.map(v => Math.min(1, v)), onMin, count } };
+    this.lightHist = { ...(this.lightHist || {}), [id]: { at: Date.now(), bars: bars.map(m => m / 60), steps: steps.map(v => Math.min(1, v)), onMin, count, hits } };
     this._lhBusy.delete(id);
   }
   /** minutes a thermostat actively heated / cooled since midnight (hvac_action history) for the climate card bottom */
@@ -592,7 +641,7 @@ class HacasaNova extends LitElement {
   _glide(st, x, snap) {
     const max = st.scrollWidth - st.clientWidth, pad = parseFloat(getComputedStyle(st).paddingLeft) || 0;
     if (snap) {
-      const starts = [...new Set([...[...st.children].map(c => c.offsetLeft - pad).filter(v => v >= 0 && v < max), max])], from = st.scrollLeft, dir = this._wheelDir || 0; this._wheelDir = 0;
+      const starts = [...new Set([...(st.querySelector(".cardrow") ? [...st.querySelectorAll(".cardrow>*")] : [...st.children]).map(c => c.getBoundingClientRect().left - st.getBoundingClientRect().left + st.scrollLeft - pad).filter(v => v >= 0 && v < max), max])], from = st.scrollLeft, dir = this._wheelDir || 0; this._wheelDir = 0;
       const ahead = dir > 0 ? starts.filter(v => v > from + 2) : dir < 0 ? starts.filter(v => v < from - 2).reverse() : [];
       if (ahead.length && Math.abs(x - from) < Math.abs(ahead[0] - from)) x = ahead[0];   // a small nudge still moves one card in that direction
       else if (starts.length) x = starts.reduce((a, b) => Math.abs(b - x) < Math.abs(a - x) ? b : a);
@@ -657,7 +706,7 @@ class HacasaNova extends LitElement {
   floorOf(room) { return room ? (this.floorGroups.find(g => g.rooms.includes(room))?.id ?? null) : null; }
   /** phones and tablets: glass pill at the bottom (home · rooms · more) plus a detached search button; the rooms tab opens the room sheet (renderLinks) above it */
   renderBottomNav(room, isPage) {
-    const srch = this.searchOpen && !this.settings, shortcuts = (this.config.bottomTabs || ["sensoren", "energie"]).filter(k => PAGES[k]);
+    const srch = this.searchOpen && !this.settings, shortcuts = (this.config.bottomTabs || ["sensoren", "energie"]).map(k => PAGE_ALIAS[k] || k).filter(k => PAGES[k]);
     const toggleSearch = () => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; this.drawer = false; };
     if (this.edit && !this.settings) return html`<div class="bnav"><div class="btabs pill edit"><span class="lbl"><ha-icon icon="mdi:pencil-outline"></ha-icon>${this.editKey === "home" ? t("Startpagina bewerken") : t("Kamer bewerken")}</span><a class="done" @click=${() => this.stopEdit()}>${t("Klaar")}</a></div></div>`;
     return html`<div class=${classMap({ bnav: true, srch })}>
@@ -671,14 +720,40 @@ class HacasaNova extends LitElement {
       <button class=${classMap({ sbtn: true, on: srch })} title=${t("Zoeken")} @click=${toggleSearch}><img src=${icon(srch ? "close" : "search")} alt=""></button>
     </div>`;
   }
+    /** rooms that don't fit in the bar go under the "+N" pill (#195); the open room always stays in the bar.
+      Runs after every render but only measures when the rooms, the open room or the panel width changed */
+  fitRooms() {
+    const rl = this.renderRoot.querySelector(".links:not(.floors) .rl"), ovf = rl?.querySelector(".ovf");
+    if (!ovf || matchMedia("(max-width:900px)").matches) return;
+    const links = [...rl.children].filter(a => a.tagName === "A");
+    const sig = [this.offsetWidth, ...links.map(a => a.textContent + a.classList.contains("active"))].join("|");
+    if (!links.length || rl.dataset.fit === sig) return;
+    rl.dataset.fit = sig;
+    for (const a of links) a.classList.remove("ovh");
+    ovf.classList.add("ovh");
+    const rowH = links[0].offsetHeight + (parseFloat(getComputedStyle(rl).rowGap) || 0);
+    const fits = () => { const on = [...links, ovf].filter(el => !el.classList.contains("ovh")), t0 = Math.min(...on.map(el => el.offsetTop));   // the bar centres its rows, so the first row moves as rows go
+      return on.every(el => Math.round((el.offsetTop - t0) / rowH) < 1); };
+    if (!fits()) {
+      ovf.classList.remove("ovh");
+      for (let i = links.length - 1; i >= 0 && !fits(); i--) if (!links[i].classList.contains("active")) links[i].classList.add("ovh");
+    }
+    const hidden = links.filter(a => a.classList.contains("ovh"));
+    ovf.querySelector(".cnt").textContent = "+" + hidden.length;
+    ovf.querySelectorAll(".dd>a").forEach((a, i) => a.classList.toggle("ovh", !links[i].classList.contains("ovh")));
+  }
   /** navigation: one pill per room, or (config.navMode "floors") one per floor with a room dropdown — hover on desktop, tap on touch/mobile */
   renderLinks(room, isPage) {
     if (this.searchOpen && !this.drawer && !matchMedia("(max-width:900px)").matches) return html`<div class="links pill srch">${searchBar(this)}</div>`;
-    const more = html`<a class=${classMap({ more: true, active: !!isPage })} @click=${() => this.openPopup({ type: "more" })}>${t("Meer")}</a><span class="sep"></span><a class=${classMap({ search: true, active: !!this.searchOpen })} title=${t("Zoeken")} @click=${() => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; }}><img class="ico" src=${icon("search")} alt=""></a>`;
+    const more = html`<span class="sep"></span><a class=${classMap({ more: true, active: !!isPage })} @click=${() => this.openPopup({ type: "more" })}>${t("Meer")}</a><a class=${classMap({ search: true, active: !!this.searchOpen })} title=${t("Zoeken")} @click=${() => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; }}><img class="ico" src=${icon("search")} alt=""></a>`;
     const groups = this.config.navMode === "floors" ? this.floorGroups : [];
     const homeLink = nothing;   // (the bar has its own home tab)
     if (groups.length < 2) return html`<div class="links pill">${homeLink}
-      ${this.rooms.map(r => html`<a class=${classMap({ active: room?.id === r.id })} @click=${() => this.go(r)}>${r.name}</a>`)}${more}</div>`;
+      <div class="rl">${this.rooms.map(r => html`<a class=${classMap({ active: room?.id === r.id })} @click=${() => this.go(r)}>${r.name}</a>`)}
+        <div class=${classMap({ fl: true, ovf: true, open: this.navFloor === "ovf" })} @mouseleave=${() => { if (this.navFloor === "ovf") this.navFloor = null; }}>
+          <a @click=${() => { this.navFloor = this.navFloor === "ovf" ? null : "ovf"; }}><b class="cnt"></b><ha-icon icon="mdi:chevron-down"></ha-icon></a>
+          <div class="dd">${this.rooms.map(r => html`<a class=${classMap({ active: room?.id === r.id })} @click=${() => { this.navFloor = null; this.go(r); }}>${r.name}</a>`)}</div>
+        </div></div>${more}</div>`;
     const all = this.drawer && this.config.navExpand;   // mobile menu: every floor open, headers are just headings
     return html`<div class=${classMap({ links: true, pill: true, floors: true, expanded: all })}>${homeLink}
       ${groups.map(g => { const here = g.rooms.includes(room);
@@ -723,7 +798,7 @@ class HacasaNova extends LitElement {
       <div class="big">${tile ? nothing : wxIcon(w.state, 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
       <div class="cnd">${condText(w.state)}${wxExpect(this) ? html`<i class="dt"></i>${wxExpect(this)}` : nothing}</div>
       ${line ? html`<div class="hl">${line}</div>` : nothing}
-      ${hours.length || tomorrow ? html`<div class="wbar">${hours.map(f => html`<div>${t("{h}u", { h: new Date(f.datetime).getHours() })}${wxIcon(f.condition, 24)}<b>${Math.round(num(f.temperature) ?? 0)}°</b></div>`)}
+      ${hours.length || tomorrow ? html`<div class="wbar">${hours.map(f => html`<div>${hourLabel(new Date(f.datetime), t("{h}u", { h: new Date(f.datetime).getHours() }))}${wxIcon(f.condition, 24)}<b>${Math.round(num(f.temperature) ?? 0)}°</b></div>`)}
         ${tomorrow ? html`<div class="tm">${t("Morgen")}${wxIcon(tomorrow.condition, 24)}<b>${th != null ? Math.round(th) + "°" : ""}${tl != null ? html`<em> / ${Math.round(tl)}°</em>` : nothing}</b></div>` : nothing}</div>` : nothing}
     </div>`;
   }
@@ -740,11 +815,11 @@ class HacasaNova extends LitElement {
     items.push(...this.applianceItems(this.rooms.flatMap(r => r.ents.appliances)));
     const su = selfUpdate(this);   // a newer HaCasa Nova: first in the row, tap = what's new (+ install via HACS)
     if (su) items.unshift({ k: "update", icon: "mdi:arrow-up-circle-outline", title: t("HaCasa Nova {v}", { v: String(su.to).replace(/^v/, "") }), text: t("update beschikbaar · tik voor wat er nieuw is"), tap: su.open });
-    const editing = this.editing("home"), cards = editing ? [editStrip(this, "home")] : this.applyPage("home", homeCards(this, h)).map(c => c.tpl);
+    const editing = this.editing("home"), cards = editing ? editStrip(this, "home") : this.applyPage("home", homeCards(this, h)).map(c => c.tpl);
     return html`
       ${this.renderTitle(h.temp, t(this.pageCfg("home").title || this.config.home?.greeting || "") || greeting(), "", this.tickerOn("home", items), html`${this.renderPills(h)}${quickRow(this)}`, "home", this.renderWx(h.weather), h.hum)}
       ${editing ? editTools(this, "home") : nothing}
-      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
+      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${this.stripRows(cards)}</div>${this.stripFades()}${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen kaarten: wijs entiteiten toe aan ruimtes in Home Assistant.")}</div>` : nothing}
       ${editing ? editBar(this, "home") : nothing}
       <div class=${classMap({ banner: true, show: h.motion.length > 0 && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in {rooms}", { rooms: h.motion.map(r => inText(r.name)).join(", ") })}</div>`;
@@ -826,11 +901,11 @@ class HacasaNova extends LitElement {
     for (const b of e.battery.filter(x => +x.state?.state <= (this.config.home?.lowBattery ?? 20))) items.push({ k: "battery", icon: "mdi:battery-20", title: name(this.hass, b), text: t("Batterij {n}%", { n: b.state.state }) });
     if (e.lights.length) items.push({ k: "lights", icon: "mdi:lightbulb-outline", title: t("Lampen"), text: r.lightsOn ? t("{n} van {m} aan", { n: r.lightsOn, m: e.lights.length }) : t("Alles uit") });
     if (r.motion) items.push({ k: "motion", icon: "mdi:motion-sensor", title: t("Beweging"), text: r.motionOn ? t("Nu") : relTime(r.motion.last_changed) });
-    const editing = this.editing(r.id), cards = editing ? [editStrip(this, r.id)] : this.applyPage(r.id, this.roomCards(r)).map(c => c.tpl);
+    const editing = this.editing(r.id), cards = editing ? editStrip(this, r.id) : this.applyPage(r.id, this.roomCards(r)).map(c => c.tpl);
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}
       ${editing ? editTools(this, r.id) : nothing}
-      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
+      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${this.stripRows(cards)}</div>${this.stripFades()}${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen apparaten in deze ruimte.")}</div>` : nothing}
       ${editing ? editBar(this, r.id) : nothing}
       <div class=${classMap({ banner: true, show: r.motionOn && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in de {room}", { room: inText(r.name) })}</div>`;

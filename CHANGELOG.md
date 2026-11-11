@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.2.0-beta.1 (beta)
+
+- **12-hour times (#181, #179)**, thanks to jimmy-ungerman. HaCasa now follows the time format in your Home Assistant profile, so English shows "Rain from 2:00 pm" when Home Assistant does. Settings → Appearance → *Time format* lets you pick 12-hour or 24-hour yourself.
+- **Room bar on narrower screens (#195).** Rooms that don't fit in the bar (a laptop with the Home Assistant sidebar open, or display scaling) now go under a *+N* pill with a dropdown, instead of disappearing off the end of the bar. *More* and search always stay visible, and the open room always stays in the bar. Thanks heikoa74 for the report.
+- **Cards a bit smaller on a desktop**, so five fit side by side and the row lines up with the weather block on the home page. On a 1080p screen that is about 12% smaller than before. Everything on a card (text, icons, buttons) now scales with the card, so a smaller or bigger card keeps the same look instead of getting cramped or empty; cards never go below 90%.
+- **Card shadows are no longer cut off** in a hard line just below the cards (#187), thanks to coasting24.
+- **Two rows of cards.** Settings → Appearance → *Card rows*: on a desktop screen, when the cards don't fit in one row, the top row is filled and the rest goes below; with more than two rows' worth both rows scroll sideways together. When they fit, it stays one row. In two rows the cards always run exactly from the room title to the end of the weather block: their size adjusts a little to make that fit (5 per row on a 1080p screen, 6 on a very wide one, 4 on a narrow one). On lower screens the cards and the room title get smaller to make it fit; on a screen too low for that (under about 850px) it stays one row.
+- **Sharp room photos from Home Assistant (#194)**, thanks to coasting24. A photo set on the area in Home Assistant was shown as its 512px preview, which looked blurry on a big screen; the background now uses the original upload. It keeps the same address, so a wall tablet does not download it again every hour.
+- **French and Polish**, thanks to Darkdragon14 (#190) and natanmajcherek (#193). **German** is complete again (#185), thanks to coasting24.
+- **Hide people from the Household card.** In the card settings (⋯) you can tap people to hide them, for example a guest account. They also leave the count at the top.
+- **Pick the room temperature and humidity sensor.** Page settings of a room now have *Temperature* and *Humidity*. Handy when the room picked up the wrong sensor, like the one in a 3D printer. Leave it on automatic to keep using the room sensors. The Home page settings have the same two fields (the same setting as in Settings → Home page).
+- **The Household card is no longer narrower than the other cards** on a phone or tablet. It picked up a style meant for the who's-home button at the top.
+- **Security page (#179).** The camera page under *More* is now a security page: the alarm with its modes, the cameras, doors & windows, locks and motion sensors on one page. On a desktop the alarm sits big at the top with large mode buttons and the lists run down the right side. Doors, windows and motion sensors open HaCasa's own popup with their last 24 hours, locks open the lock popup. Every door, window and motion sensor has a small bar with how often it opened or saw motion in the last 24 hours. *Choose* lets you tap cameras and sensors to leave them off; while choosing, each one says Visible or Hidden. The security popup links to it, and old links to the camera page still work.
+- **Rooms with a name in Chinese (or any script without Latin letters) can be opened again (#196)**, thanks to rayw8108-git. Their address was empty, so the tab led back to the home page. Also fixed the `_unsubNotif is not a function` error in the console.
+- **More pages and Settings no longer scroll under the top bar** on a phone or tablet. They scroll in their own area just below it, and the content fades out at that edge (on a desktop too).
+- **Reordering cards without dragging (#195).** In edit mode every card has ‹ › buttons to move it one place. On an iPad, holding a card to drag it no longer opens the iPadOS menu.
+- **Measure only for plugs (#191)**, thanks to coasting24 for the idea and the groundwork. A switch or plug card has a *Measure only* option in its settings (⋯): the card never switches and its popup has no switch button. For the fridge, the freezer or the server.
+- **Confirm before switching.** Every card that switches on a tap (switches, plugs, lights, fans, locks) has a *Confirm first* option in its settings (⋯), with a question of your own. Meant for the things you do not want to switch by accident.
+- **Template cards can ask first (#184).** A template card that toggles an entity or runs an action has a *Confirm first* option, with a question of your own ("Did you really water the plants?").
+- **Camera popup plays through Home Assistant's own player (#189).** A camera that streams (HLS or WebRTC) now opens in the same player as Home Assistant's details dialog, with sound controls. Cameras without a stream keep the MJPEG view, and when that fails to load the popup tries Home Assistant's player too.
+- **"Nobody home" while everyone was home (#180).** A person in a zone of their own called *Home* has the state `Home` instead of `home`. Their row in *Who is home* said Home, but the count, the presence pill and the Household card did not count them. They count now.
+
 ## 3.1.0
 
 Everything from the six betas below, plus these changes since beta.6:

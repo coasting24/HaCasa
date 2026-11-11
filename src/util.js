@@ -1,4 +1,4 @@
-import { t, locale, hc } from "./i18n.js";
+import { t, locale, timeOpts } from "./i18n.js";
 // Small helpers shared by the panel.
 import ICONS from "hcn:icons";                                 // icons/*.svg as data: URLs (inlined by build.mjs)
 export const BASE = new URL("./", import.meta.url);           // dist/ folder URL at runtime
@@ -12,9 +12,14 @@ export const VERSION = typeof __VERSION__ === "string" ? __VERSION__ : "dev";
 export const slug = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
   .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+/** a room's address: its name as a slug, or its area id when the name has no Latin letters or digits (客厅, Спальня) (#196) */
+export const roomSlug = (name, id) => slug(name) || slug(id) || id || "";
+
 export const domain = id => id.split(".")[0];
 export const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
 export const isOn = s => !!s && ["on", "open", "playing", "heating", "cooling", "home"].includes(s.state);
+/** a person at home: "home", or "Home" when they are in a zone of their own named Home (#180) */
+export const atHome = s => !!s && String(s.state).trim().toLowerCase() === "home";
 export const unavailable = s => !s || s.state === "unavailable" || s.state === "unknown";
 
 export const comfort = v => v == null ? "" : v < 16 ? t("Erg koud") : v < 18 ? t("Fris") : v < 21 ? t("Comfortabel") : t("Warm");
@@ -27,7 +32,7 @@ const DAY = 86400000;
 export function relTime(iso) {
   if (!iso) return "";
   const d = new Date(iso), now = new Date(), diff = now - d;
-  const hm = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() });
+  const hm = d.toLocaleTimeString(locale(), timeOpts());
   if (diff < 60000) return t("nu");
   if (diff < 3600000) return t("{n} min geleden", { n: Math.round(diff / 60000) });
   if (d.toDateString() === now.toDateString()) return hm;
@@ -53,7 +58,7 @@ export function sinceText(iso) {
   if (diff < 3600000) return t("{n} min geleden", { n: Math.round(diff / 60000) });
   return t("sinds {t}", { t: relTime(iso) });
 }
-export const clock = () => new Date().toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", ...hc() });
+export const clock = () => new Date().toLocaleTimeString(locale(), timeOpts());
 
 // Navigate inside Home Assistant without a full reload.
 export function navigate(path) {
