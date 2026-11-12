@@ -179,7 +179,7 @@ class HacasaNova extends LitElement {
     if (this.settings || this.page) this.classList.remove("rows2");   // set per view by stripRows()
     { const sc = this.cardScale(); if (!sc) { this.style.removeProperty("--u"); this.style.removeProperty("--cz"); } else if (!this.classList.contains("rows2")) { this.style.setProperty("--u", sc.u1 + "px"); this.style.setProperty("--cz", sc.u1); } }   // card size for pages and popups too
     if (setTimeFormat(this.hass.locale, this.config.timeFormat)) this.now = clock();   // a changed time format shows at once, not at the next tick
-    const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); this.classList.toggle("calm", !!this.config.perfMode); setMotion(!still); setWxStyle(this.config.wxIcons);
+    const still = !!this.config.noMotion || matchMedia("(prefers-reduced-motion: reduce)").matches; this.classList.toggle("still", still); this.classList.toggle("calm", !!this.config.perfMode); this.classList.toggle("shade", this.config.stripEdges === "shadow"); setMotion(!still); setWxStyle(this.config.wxIcons);
     if (changed.has("popup")) { const was = changed.get("popup"); if (was && !this.popup) ghost(this, ".overlay", "pop-out", 200); else if (was?.menu && this.popup && !this.popup.menu && this.popup.type === was.type) ghost(this, ".pmenu", "menu-out", 170, (c, el) => { const r = el.getBoundingClientRect(); c.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;right:auto;bottom:auto;width:${r.width}px`; }); }
     if (!this._userLoaded) { this._userLoaded = true; this.loadUser(); this.subscribeTemplates(); }
     if (!this._unsubNotif && this.isConnected) { const sub = subscribeNotifications(this.hass, list => { this.notifications = list; }); this._unsubNotif = () => Promise.resolve(sub).then(f => typeof f === "function" && f()).catch(() => {}); }
@@ -210,9 +210,9 @@ class HacasaNova extends LitElement {
   updated() {
     if (this._viewSwitch) { this._viewSwitch = false; requestAnimationFrame(() => { this.style.transform = "translateZ(0)"; requestAnimationFrame(() => { this.style.transform = ""; }); }); }
     afterRender(this);
+    this.fitRooms(); this.stripEnd();   // first: stripEnd sizes the edge pictures of two rows, which _perf then paints
     for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; this._fadeStrip(st); }   // cards may have changed: measure again
     this._perf();
-    this.fitRooms(); this.stripEnd();
   }
 
   /* ---------- actions ---------- */
@@ -467,6 +467,7 @@ class HacasaNova extends LitElement {
     const st = e.currentTarget, on = st.scrollLeft > 4;
     if (on !== !!this.stripScrolled) this.stripScrolled = on;   // the left shadow of two rows (stripFades)
     this.stripEnd();
+    if (this.classList.contains("shade")) { this._fadeStrip(st); return; }   // shadows: only the cut at the title line, at once
     if (this.classList.contains("perf")) { st.classList.toggle("scrolled", st.scrollLeft > 4); return; }   // fixed edge strips (styles.js)
     this._fadeTick(st);
   }
@@ -488,23 +489,40 @@ class HacasaNova extends LitElement {
     // phone: grid, no row edges; performance mode: fixed edge strips showing the background instead (per-card masks change
     // every scroll frame and make each edge card repaint with its picture: measured, that was most of the mode's scroll
     // cost; a mask on the scrolling row costs as much)
-    // two rows: the cards sit in .cardrow wrappers and the row's edges get the original's shadows (stripFades) instead
-    if (innerWidth <= 900 || this.classList.contains("perf") || this.classList.contains("rows2")) {
+    const shade = this.classList.contains("shade");   // "Card row edges: shadow": the original's dark edges (stripFades), cards cut at the title line
+    if (innerWidth <= 900 || (this.classList.contains("perf") && !shade)) {
       for (const c of st.querySelectorAll("[data-fm]")) { c.removeAttribute("data-fm"); c.__g = ""; }
       st.classList.toggle("scrolled", st.scrollLeft > 4); return;
     }
     st.__fk ??= st.scrollLeft > 4 ? 1 : 0;
     // geometry is measured once per render / resize (updated() clears st.__geo), never while scrolling: the loop below
     // then only writes, so a scroll frame costs no style or layout pass
-    if (!st.__geo || st.__geo.n !== st.children.length) st.__geo = {
-      n: st.children.length, W: st.clientWidth, P: parseFloat(getComputedStyle(st).paddingLeft) || 0,
+    // two rows (3.2): the cards sit in .cardrow wrappers; both rows fade the same way
+    const kids = st.querySelector(":scope > .cardrow") ? [...st.querySelectorAll(":scope > .cardrow > *")] : [...st.children];
+    if (!st.__geo || st.__geo.n !== kids.length) st.__geo = {
+      n: kids.length, W: st.clientWidth, P: parseFloat(getComputedStyle(st).paddingLeft) || 0,
       // positions as drawn: the cards may be zoomed (--cz, upstream's card scale), and offsetLeft / offsetWidth do not see the zoom
-      items: (r0 => [...st.children].map(w => { const c = w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, r = w.getBoundingClientRect();
+      items: (r0 => kids.map(w => { const c = w.classList.contains("card") ? w : w.querySelector(":scope > .card") || w, r = w.getBoundingClientRect();
         return { c, l: r.left - r0 + st.scrollLeft, cw: r.width, z: parseFloat(getComputedStyle(c).zoom) || 1 }; }))(st.getBoundingClientRect().left),
     };
     if (!st.__geo.fresh) { st.__geo.fresh = true; for (const { c } of st.__geo.items) if (c.__g || c.hasAttribute("data-fm")) c.__g = "?"; }   // after a render: write every mask once more
     // P: the strip's left padding, room for the first card's shadow; the fade starts at the old edge (P), as the
     // original overlay did, and runs out to nothing across the padding instead of cutting cards off hard there
+    if (shade) {
+      // the row keeps its shadow room left of the title line (P), so an unscrolled first card keeps its whole shadow; a card
+      // scrolled across the line is cut off there, as the original's edge did, under the left shadow
+      const O = 64;
+      for (const { c, l, cw, z } of st.__geo.items) {
+        const a = l - st.scrollLeft, P = st.__geo.P, cut = ((P - a) / z + O).toFixed(1);
+        // wholly past the line: hidden with its shadow, which would otherwise still fall across the line
+        const g = a + cw <= P ? "linear-gradient(transparent,transparent)" : a < P - .5 ? `linear-gradient(to right,rgba(0,0,0,0) ${cut}px,#000 ${cut}px)` : "";
+        if (g === (c.__g || "")) continue;
+        if (!g) { c.removeAttribute("data-fm"); c.__g = ""; continue; }
+        if (!c.__g) c.setAttribute("data-fm", "");
+        c.__g = g; c.style.setProperty("--g", g);
+      }
+      st.classList.toggle("scrolled", st.scrollLeft > 4); return;
+    }
     const { W, P, items } = st.__geo, F = 64, S = .38, x = st.scrollLeft, kl = st.__fk;
     const O = 64;   // the mask reaches O px past each side of the card, so its shadow is not masked away (styles.js: --o)
     const lerp = (p, q, t) => p + (q - p) * Math.max(0, Math.min(1, t));
@@ -533,7 +551,19 @@ class HacasaNova extends LitElement {
   }
 
   /** the right-hand fade only while there are cards further along */
-  stripEnd() { const st = this.renderRoot.querySelector(".strip"), f = this.renderRoot.querySelector(".sfade.r"); if (st && f) f.classList.toggle("off", st.scrollLeft >= st.scrollWidth - st.clientWidth - 4); }
+  stripEnd() {
+    const st = this.renderRoot.querySelector(".strip"), f = this.renderRoot.querySelector(".sfade.r"); if (st && f) f.classList.toggle("off", st.scrollLeft >= st.scrollWidth - st.clientWidth - 4);
+    // two rows in performance mode: its still edge pictures as high as both rows of (zoomed) cards, plus the shadow room the strip has
+    const cr = st ? [...st.querySelectorAll(":scope > .cardrow")] : [], card = st?.querySelector(".card");
+    for (const sf of this.renderRoot.querySelectorAll(".pfade, .sfade")) {
+      // one row: only the shadows need it (zoomed cards); the edge pictures keep their CSS size there
+      const rows = cr.length ? cr : sf.classList.contains("sfade") && card ? [card] : [];
+      if (!rows.length) { sf.style.top = sf.style.height = sf.style.bottom = ""; continue; }
+      const a = rows[0].getBoundingClientRect(), b = rows[rows.length - 1].getBoundingClientRect(), h = this.getBoundingClientRect();
+      const pad = sf.classList.contains("pfade") ? [26, 48] : [0, 0];   // edge pictures cover the strip's shadow room too, shadows only the cards
+      sf.style.top = `${a.top - h.top - pad[0]}px`; sf.style.height = `${b.bottom - a.top + pad[0] + pad[1]}px`; sf.style.bottom = "auto";
+    }
+  }
   /** "Rijen kaarten: 2": the first half of the cards on the top row, the rest below; CSS decides whether two rows fit (desktop, tall enough) */
   /** card size on a desktop: --u (1 = a 320 × 200 card) so that five cards and their gaps fill the width between the page
       margins, the fifth ending where the weather block ends; never taller than the screen allows (u2: two rows under the
@@ -819,7 +849,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(h.temp, t(this.pageCfg("home").title || this.config.home?.greeting || "") || greeting(), "", this.tickerOn("home", items), html`${this.renderPills(h)}${quickRow(this)}`, "home", this.renderWx(h.weather), h.hum)}
       ${editing ? editTools(this, "home") : nothing}
-      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${this.stripRows(cards)}</div>${this.stripFades()}${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
+      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${this.stripRows(cards)}</div>${this.config.stripEdges === "shadow" ? this.stripFades() : nothing}${this.config.perfMode && this.config.stripEdges !== "shadow" ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen kaarten: wijs entiteiten toe aan ruimtes in Home Assistant.")}</div>` : nothing}
       ${editing ? editBar(this, "home") : nothing}
       <div class=${classMap({ banner: true, show: h.motion.length > 0 && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in {rooms}", { rooms: h.motion.map(r => inText(r.name)).join(", ") })}</div>`;
@@ -905,7 +935,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}
       ${editing ? editTools(this, r.id) : nothing}
-      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${this.stripRows(cards)}</div>${this.stripFades()}${this.config.perfMode ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
+      <div class="strip" @click=${this._stripTap} @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${this.stripRows(cards)}</div>${this.config.stripEdges === "shadow" ? this.stripFades() : nothing}${this.config.perfMode && this.config.stripEdges !== "shadow" ? html`<div class="pfade l"></div><div class="pfade r"></div>` : nothing}
       ${!cards.length ? html`<div class="empty">${t("Geen apparaten in deze ruimte.")}</div>` : nothing}
       ${editing ? editBar(this, r.id) : nothing}
       <div class=${classMap({ banner: true, show: r.motionOn && !editing })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in de {room}", { room: inText(r.name) })}</div>`;

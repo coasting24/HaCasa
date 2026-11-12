@@ -227,15 +227,17 @@ export const styles = css`
     :host(.perf) .pfade.r{right:0;width:64px}
   }
   :host(.calm) .overlay{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,20,20,.72)}
-  /* two rows of cards (below): the cards sit in row wrappers, so the per-card fades of the single row cannot reach them;
-     there the original's soft shadows mark the edges instead */
-  .sfade{display:none}
-  @media (min-width:901px) and (min-height:850px){
-    :host(.rows2) .sfade{display:block;position:absolute;bottom:85px;height:calc(var(--card-h) + 12px);width:64px;pointer-events:none;z-index:2;opacity:0;transition:opacity .25s}
-    :host(.rows2) .sfade.r{right:0;background:linear-gradient(to left,rgba(0,0,0,.38),transparent);opacity:1}
-    :host(.rows2) .sfade.l{left:var(--pad);background:linear-gradient(to right,rgba(0,0,0,.38),transparent)}
-    :host(.rows2) .sfade.l.on{opacity:1}
-    :host(.rows2) .sfade.r.off{opacity:0}
+  .sfade{display:none}   /* upstream's edge shadows: the fork fades the cards themselves, in one row and in two */
+  /* Settings → "Card row edges: shadow" (.shade): the original's dark edges instead of the fading cards. The row keeps its
+     shadow room left of the title line; cards scrolled across the line are cut there (_fadeStrip); stripEnd sets the
+     shadows' height to the cards */
+  @media (min-width:901px){
+    :host(.shade) .sfade{display:block;position:absolute;bottom:85px;height:calc(var(--card-h) + 12px);width:64px;pointer-events:none;z-index:2;opacity:0;transition:opacity .25s}
+    :host(.shade) .sfade.r{right:0;background:linear-gradient(to left,rgba(0,0,0,.38),transparent);opacity:1}
+    /* no shadow on the left: in front of the row's shadow room it showed as a dark box beside the cards; cards scrolled across
+       the title line simply end there (_fadeStrip) */
+    :host(.shade) .sfade.l{display:none}
+    :host(.shade) .sfade.r.off{opacity:0}
   }
   /* desktop: a card in the row is laid out at its base size (320 × 200) and zoomed as a whole to the size the panel picked
      (--cz, from cardScale()), so text, icons and controls keep their proportions on a smaller or bigger card */
@@ -245,6 +247,12 @@ export const styles = css`
      sits right above them and gets smaller on lower screens */
   @media (min-width:901px) and (min-height:850px){
     :host(.rows2) .strip{flex-direction:column;right:var(--pad)}   /* same margin left and right; --u comes from cardScale() */
+    /* fork: two rows run to the screen edge like the single row, so a card leaving on the right fades there instead of being
+       cut off at the page margin; the last card still ends at the margin once the row is scrolled to its end */
+    :host(.rows2) .strip{right:0}
+    :host(.rows2) .cardrow{padding-right:var(--pad)}
+    :host(.rows2.shade) .strip{right:var(--pad)}   /* shadows: as in the original, both rows end at the page margin */
+    :host(.rows2.shade) .cardrow{padding-right:0}
     :host(.rows2) .sfade.r{right:var(--pad)}
     :host(.rows2) .strip::after{display:none}
     :host(.rows2) .cardrow{display:flex;gap:var(--card-gap);flex:none;width:max-content}
