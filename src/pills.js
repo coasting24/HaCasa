@@ -34,19 +34,38 @@ function builtinState(id, h) {
 }
 const stateText = (p, s) => s ? (unavailable(s) ? t("Onbereikbaar") : String(p.hass.formatEntityState?.(s) ?? s.state)) : "";
 
+/** Tap "Lijst" (list): the entities a pill stands for — domains (comma list), an area, a label and states (comma list), all
+ *  optional and combined; groups, hidden entities and diagnostic / config entities stay out. Shown in a popup with an
+ *  optional button for all of them (pilllist in popups.js) */
+const csv = v => String(v || "").split(",").map(x => x.trim()).filter(Boolean);
+export function pillMatches(p, x) {
+  const hass = p.hass, doms = csv(x.listDomain), states = csv(x.listState).map(v => v.toLowerCase());
+  return Object.values(hass.states).filter(s => {
+    const id = s.entity_id, reg = hass.entities?.[id] || {};
+    if (doms.length && !doms.includes(id.split(".")[0])) return false;
+    if (reg.hidden || reg.entity_category || Array.isArray(s.attributes.entity_id)) return false;
+    if (x.listArea && (reg.area_id || hass.devices?.[reg.device_id]?.area_id) !== x.listArea) return false;
+    if (x.listLabel && !(reg.labels || []).includes(x.listLabel)) return false;
+    return !states.length || states.includes(String(s.state).toLowerCase());
+  }).sort((a, b) => String(a.attributes.friendly_name || a.entity_id).localeCompare(String(b.attributes.friendly_name || b.entity_id)));
+}
+/** the pill's own text for a list without one: "3 open" — the count and how Home Assistant words the first one's state */
+const listText = (p, x, m) => !m.length ? "" : csv(x.listState).length ? `${m.length} ${String(p.hass.formatEntityState?.(m[0]) ?? m[0].state).toLocaleLowerCase()}` : String(m.length);
+
 /** one pill as {icon, on, text, tap} or null when it has nothing to show; `preview` keeps template texts visible before they render */
 function resolve(p, key, x, h, preview) {
-  const tap = (x.tap === "nav" && x.path) ? () => p.goPath(x.path) : x.tap === "none" ? null : undefined;
+  const tap = (x.tap === "nav" && x.path) ? () => p.goPath(x.path) : x.tap === "none" ? null : x.tap === "list" && !BUILTIN_PILLS[x.id] ? () => p.openPopup({ type: "pilllist", key, pill: x.id }) : undefined;
   if (BUILTIN_PILLS[x.id]) {
     const b = builtinState(x.id, h); if (!b) return null;
     if (x.onlyActive && !b.on) return preview ? { ...b, icon: uico(x.icon, BUILTIN_PILLS[x.id].icon, b.svg), cond: true } : null;
     return { on: b.on, text: b.text, icon: uico(x.icon, BUILTIN_PILLS[x.id].icon, b.svg), tap: tap === undefined ? () => p.openPopup({ type: b.pop }) : tap };
   }
-  const s = x.entity ? p.hass.states[x.entity] : null;
+  const s = x.entity ? p.hass.states[x.entity] : null, m = x.tap === "list" ? pillMatches(p, x) : null;
+  if (m && !m.length && !isTpl(x.text)) return preview ? { text: x.text || t("niets"), icon: anyIco(x.icon || "mdi:format-list-bulleted"), cond: true } : null;   // a list pill only shows while something matches
   const rendered = p.templates?.[tplKey(key, x)]?.state;
-  const text = isTpl(x.text) ? (rendered != null && String(rendered).trim() !== "" ? String(rendered) : preview ? x.text : "") : (x.text || stateText(p, s));
+  const text = isTpl(x.text) ? (rendered != null && String(rendered).trim() !== "" ? String(rendered) : preview ? x.text : "") : (x.text || (m ? listText(p, x, m) : stateText(p, s)));
   if (!String(text).trim()) return preview ? { text: t("Nieuwe pil"), icon: anyIco(x.icon || "mdi:information-outline"), cond: true } : null;
-  const on = x.active === "always" ? true : x.active === "never" ? false : !!s && isOn(s);
+  const on = x.active === "always" ? true : x.active === "never" ? false : m ? m.length > 0 : !!s && isOn(s);
   const def = x.entity ? () => p.moreInfo(x.entity) : null;
   return { on, text, icon: anyIco(x.icon || "mdi:information-outline"),
     tap: tap !== undefined ? tap : x.tap === "toggle" && x.entity ? () => p.call("homeassistant", "toggle", { entity_id: x.entity }) : def };
@@ -81,7 +100,7 @@ export function pillEditor(p, pop, key, d, upd) {
   const row = (lbl, ctrl, sub) => html`<div class="f"><span>${lbl}${sub ? html`<small>${sub}</small>` : nothing}</span>${ctrl}</div>`;
   const seg = (x, k, opts, def = "") => html`<div class="seg">${opts.map(([v, l]) => html`<button class=${(x[k] ?? def) === v ? "on" : ""} @click=${() => patch(x.id, { [k]: v === def ? undefined : v })}>${l}${v === def ? html`<sup>${t("std")}</sup>` : nothing}</button>`)}</div>`;
   const inp = (x, k, ph) => html`<input type="text" .value=${x[k] || ""} placeholder=${ph} @change=${e => patch(x.id, { [k]: e.target.value || undefined })}>`;
-  const title = x => BUILTIN_PILLS[x.id] ? t(BUILTIN_PILLS[x.id].name) : (x.text && !isTpl(x.text) ? x.text : x.entity ? (p.hass.states[x.entity]?.attributes.friendly_name || x.entity) : isTpl(x.text) ? t("Eigen pil (Jinja)") : t("Nieuwe pil"));
+  const title = x => BUILTIN_PILLS[x.id] ? t(BUILTIN_PILLS[x.id].name) : x.listTitle && x.tap === "list" ? x.listTitle : (x.text && !isTpl(x.text) ? x.text : x.entity ? (p.hass.states[x.entity]?.attributes.friendly_name || x.entity) : isTpl(x.text) ? t("Eigen pil (Jinja)") : t("Nieuwe pil"));
   const sub = x => [BUILTIN_PILLS[x.id] ? t("automatisch") : isTpl(x.text) ? x.text : x.entity || "", x.onlyActive && t("alleen als er iets aan of open is"), condSummary(x) && t("als {c}", { c: condSummary(x) })].filter(Boolean).join(" · ");
   const editor = x => { const b = !!BUILTIN_PILLS[x.id], mode = pop.pillVis || (x.tplVisible ? "tpl" : "simple");
     return html`<li class="ped"><div class="form">
@@ -90,7 +109,16 @@ export function pillEditor(p, pop, key, d, upd) {
         : html`${row(t("Tekst"), inp(x, "text", t("bv. Wasmachine {{ states('sensor.wasmachine') }}")), t("vaste tekst of Jinja; leeg = de staat van de entiteit"))}
           ${row(t("Entiteit"), html`<input type="text" list="hcn-pill-entities" .value=${x.entity || ""} placeholder="switch.x" @change=${e => patch(x.id, { entity: e.target.value || undefined })}>`, t("optioneel: voor de tekst, tikken en oplichten"))}
           ${row(t("Oplichten"), seg(x, "active", [["", t("als de entiteit aan is")], ["always", t("altijd")], ["never", t("nooit")]]))}`}
-      ${row(t("Tikken"), seg(x, "tap", b ? [["", t("details openen")], ["nav", t("naar pagina")], ["none", t("niets")]] : [["", x.entity ? t("Home Assistant-dialoog") : t("niets")], ...(x.entity ? [["toggle", t("schakelen")]] : []), ["nav", t("naar pagina")], ...(x.entity ? [["none", t("niets")]] : [])]))}
+      ${row(t("Tikken"), seg(x, "tap", b ? [["", t("details openen")], ["nav", t("naar pagina")], ["none", t("niets")]] : [["", x.entity ? t("Home Assistant-dialoog") : t("niets")], ...(x.entity ? [["toggle", t("schakelen")]] : []), ["list", t("lijst")], ["nav", t("naar pagina")], ...(x.entity ? [["none", t("niets")]] : [])]))}
+      ${x.tap === "list" && !b ? html`
+        ${row(t("Titel"), inp(x, "listTitle", t("bv. Rolluiken")), t("de naam in deze lijst en de kop van de popup"))}
+        ${row(t("Domein"), inp(x, "listDomain", "cover"), t("bv. cover, light, switch, media_player; meerdere met komma's"))}
+        ${row(t("Toestand"), inp(x, "listState", "open"), t("alleen in deze toestand, bv. open, on, playing; leeg = alle"))}
+        ${row(t("Ruimte"), html`<select @change=${e => patch(x.id, { listArea: e.target.value || undefined })}><option value="" ?selected=${!x.listArea}>${t("overal")}</option>${Object.values(p.hass.areas || {}).sort((a, b) => a.name.localeCompare(b.name)).map(a => html`<option value=${a.area_id} ?selected=${x.listArea === a.area_id}>${a.name}</option>`)}</select>`)}
+        ${row(t("Label"), inp(x, "listLabel", "label_id"), t("optioneel: alleen entiteiten met dit Home Assistant-label (de label-ID)"))}
+        ${row(t("Knop voor alle"), inp(x, "listService", "cover.close_cover"), t("optioneel: een actie voor alle entiteiten in de lijst"))}
+        ${x.listService ? row(t("Knoptekst"), inp(x, "listButton", t("Alles sluiten"))) : nothing}
+        ${row(t("Nu"), html`<span class="sub">${t("{n} entiteiten", { n: pillMatches(p, x).length })}</span>`, t("tekst leeg = het aantal, bv. 3 open; zonder treffers is de pil verborgen"))}` : nothing}
       ${x.tap === "nav" ? row(t("Pagina"), inp(x, "path", "/hacasa/keuken"), t("een pad in Home Assistant, bv. /hacasa/keuken of /config")) : nothing}
       <div class="sh" style="margin-top:12px">${t("Zichtbaar")}</div>
       ${condFields(x, ch => patch(x.id, ch), mode, (v, ch) => p.openPopup({ ...pop, pillVis: v, draft: { ...d, pills: list.map(y => y.id === x.id ? { ...y, ...ch } : y) } }), row, t("leeg = altijd zichtbaar"), "hcn-pill-entities")}
