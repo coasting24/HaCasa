@@ -101,12 +101,14 @@ function build(c, phase, tC, moonPhase, still) {
     ${(phase === "day" ? DAY_BALLOONS : [0, 1, 2].map(() => MOOD_BALLOON[phase])).map(([l, d], i) => stripes(`hcl-b${i}`, l, d)).join("")}</defs>`;
   // surface shading: ripples radiating from the sun / moon on a clear sky, water bands in heavy weather
   const bands = (yl, yr, amp) => `M -10 ${yl} C 45 ${yl - amp}, 115 ${yr - amp}, ${W + 10} ${yr} L ${W + 10} ${H} L -10 ${H} Z`;
+  // everything in the sky ends at the far ridge: the land is see-through, so nothing may show through the hills — the glow
+  // and the ripples around the sun / moon included (the glow used to be a CSS layer behind the scene, unclipped)
+  s += `<g clip-path="url(#hcl-sky)">`;
+  s += `<radialGradient id="hcl-glow" gradientUnits="userSpaceOnUse" cx="${SX}" cy="${SY}" r="${W * 1.2}" gradientTransform="translate(${SX} ${SY}) scale(1 ${(.6 * H / (1.2 * W)).toFixed(4)}) translate(${-SX} ${-SY})"><stop offset="0" stop-color="${v.glow}"/><stop offset=".62" stop-color="transparent"/></radialGradient><rect width="${W}" height="${H}" fill="url(#hcl-glow)"/>`;
   s += `<g class="s-waves">` + (v.body
     ? (c === "sunny" ? [[32, 16, "#fff", .05], [60, 19, "#000", .05], [88, 22, "#000", .07], [120, 26, "#fff", .04]] : [[24, 12, "#fff", .05], [42, 13, "#000", .06], [62, 15, "#fff", .05], [84, 19, "#000", .05], [110, 22, "#fff", .04]])
       .map(([r, w, col, o]) => `<circle cx="${SX}" cy="${SY}" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" opacity="${o}"/>`).join("")
     : `<path d="${bands(31, 37, 9)}" fill="#fff" opacity=".05"/><path d="${bands(43, 48, 9)}" fill="#000" opacity=".07"/><path d="${bands(55, 60, 9)}" fill="#000" opacity=".1"/>`) + `</g>`;
-  // everything in the sky ends at the far ridge: the land is see-through, so nothing may show through the hills
-  s += `<g clip-path="url(#hcl-sky)">`;
   if (acc.has("stars")) s += `<g fill="#fff">` + [[10, 10], [22, 22], [34, 8], [48, 16], [60, 6], [18, 34], [70, 26], [84, 12], [96, 30], [108, 8], [122, 20], [136, 10], [148, 28], [8, 44], [130, 40], [56, 38]].map(([x, y], i) =>
     `<circle class="s-tw" style="${ad((2.6 + (i % 4) * .7).toFixed(1), ((i % 5) * .4).toFixed(1))}" cx="${x}" cy="${y}" r="${i % 3 ? .55 : .8}" opacity=".85"/>`).join("") + `</g>`;
   // the sun or moon, drawn before the hills so it sets behind them
@@ -149,7 +151,7 @@ function build(c, phase, tC, moonPhase, still) {
   if (acc.has("hail")) s += `<g fill="#fff" opacity=".95">` + field([14, 38, 62, 86, 110, 134], [22, 40, 56]).map(([x, y], i) =>
     `<circle class="l-fall" style="${ad((.55 + (i % 2) * .1).toFixed(2), ((i % 3) * .1).toFixed(1))}" cx="${x}" cy="${y}" r="1.2"/>`).join("") + `</g>`;
   s += `</g>`;
-  return `<div class="wbg wls" style="background:${skyBg(v, phase, tC)}"><div class="wls-glow" style="background:radial-gradient(120% 60% at ${sx}% ${(sy * HZ / 100).toFixed(0)}%, ${v.glow}, transparent 62%)"></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true">${s}</svg></div>`;
+  return `<div class="wbg wls" style="background:${skyBg(v, phase, tC)}"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true">${s}</svg></div>`;
 }
 
 /** dawn / day / dusk / night from sun.sun (elevation and rising), else the clock — as the widget does */
@@ -169,7 +171,7 @@ export function landscape(cond, phase, tC, moonPhase, still, ns = "hcl") {
 }
 export const landscapeStyles = `
   .wls{overflow:hidden}
-  .wls svg,.wls-glow{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .wls svg{position:absolute;inset:0;width:100%;height:100%;display:block}
   .wls .s-waves{animation:s-waves 14s ease-in-out infinite}
   .wls .s-tw{animation:w-tw 3s ease-in-out infinite}
   .wls .s-drift{animation:s-drift 9s ease-in-out infinite}
