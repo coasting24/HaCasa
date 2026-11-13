@@ -40,8 +40,11 @@ const stateText = (p, s) => s ? (unavailable(s) ? t("Onbereikbaar") : String(p.h
 const csv = v => String(v || "").split(",").map(x => x.trim()).filter(Boolean);
 export function pillMatches(p, x) {
   const hass = p.hass, doms = csv(x.listDomain), states = csv(x.listState).map(v => v.toLowerCase());
+  const only = x.listInclude?.length ? new Set(x.listInclude) : null, skip = new Set(x.listExclude || []);   // "Nur deze" / "Uitsluiten"
   return Object.values(hass.states).filter(s => {
     const id = s.entity_id, reg = hass.entities?.[id] || {};
+    if (skip.has(id) || (only && !only.has(id))) return false;
+    if (only) return !states.length || states.includes(String(s.state).toLowerCase());   // a chosen set: only the state still filters
     if (doms.length && !doms.includes(id.split(".")[0])) return false;
     if (reg.hidden || reg.entity_category || Array.isArray(s.attributes.entity_id)) return false;
     if (x.listArea && (reg.area_id || hass.devices?.[reg.device_id]?.area_id) !== x.listArea) return false;
@@ -100,6 +103,14 @@ export function pillEditor(p, pop, key, d, upd) {
   const row = (lbl, ctrl, sub) => html`<div class="f"><span>${lbl}${sub ? html`<small>${sub}</small>` : nothing}</span>${ctrl}</div>`;
   const seg = (x, k, opts, def = "") => html`<div class="seg">${opts.map(([v, l]) => html`<button class=${(x[k] ?? def) === v ? "on" : ""} @click=${() => patch(x.id, { [k]: v === def ? undefined : v })}>${l}${v === def ? html`<sup>${t("std")}</sup>` : nothing}</button>`)}</div>`;
   const inp = (x, k, ph) => html`<input type="text" .value=${x[k] || ""} placeholder=${ph} @change=${e => patch(x.id, { [k]: e.target.value || undefined })}>`;
+  /** entity ids as chips (× removes one) plus a field with suggestions to add one; suggestions follow the pill's domain */
+  // name and room, so two "Rolluik" entities can be told apart
+  const chipName = id => { const r = p.hass.entities?.[id] || {}, area = p.hass.areas?.[r.area_id || p.hass.devices?.[r.device_id]?.area_id]?.name; return (p.hass.states[id]?.attributes.friendly_name || id) + (area ? ` · ${area}` : ""); };
+  const pick = (x, k) => { const ids = x[k] || [], doms = csv(x.listDomain), dl = `hcn-pick-${x.id}`;
+    const opts = Object.keys(p.hass.states).filter(id => !ids.includes(id) && (!doms.length || doms.includes(id.split(".")[0]))).sort();
+    return html`<div class="pick">${ids.length ? html`<div class="chips">${ids.map(id => html`<button title=${id} @click=${() => patch(x.id, { [k]: ids.filter(y => y !== id).length ? ids.filter(y => y !== id) : undefined })}>${chipName(id)} ×</button>`)}</div>` : nothing}
+      <input type="text" list=${dl} placeholder=${t("entiteit toevoegen…")} @change=${e => { const v = e.target.value.trim(); e.target.value = ""; if (v && p.hass.states[v] && !ids.includes(v)) patch(x.id, { [k]: [...ids, v] }); }}>
+      <datalist id=${dl}>${opts.map(id => html`<option value=${id}>${chipName(id)}</option>`)}</datalist></div>`; };
   const title = x => BUILTIN_PILLS[x.id] ? t(BUILTIN_PILLS[x.id].name) : x.listTitle && x.tap === "list" ? x.listTitle : (x.text && !isTpl(x.text) ? x.text : x.entity ? (p.hass.states[x.entity]?.attributes.friendly_name || x.entity) : isTpl(x.text) ? t("Eigen pil (Jinja)") : t("Nieuwe pil"));
   const sub = x => [BUILTIN_PILLS[x.id] ? t("automatisch") : isTpl(x.text) ? x.text : x.entity || "", x.onlyActive && t("alleen als er iets aan of open is"), condSummary(x) && t("als {c}", { c: condSummary(x) })].filter(Boolean).join(" · ");
   const editor = x => { const b = !!BUILTIN_PILLS[x.id], mode = pop.pillVis || (x.tplVisible ? "tpl" : "simple");
@@ -116,6 +127,8 @@ export function pillEditor(p, pop, key, d, upd) {
         ${row(t("Toestand"), inp(x, "listState", "open"), t("alleen in deze toestand, bv. open, on, playing; leeg = alle"))}
         ${row(t("Ruimte"), html`<select @change=${e => patch(x.id, { listArea: e.target.value || undefined })}><option value="" ?selected=${!x.listArea}>${t("overal")}</option>${Object.values(p.hass.areas || {}).sort((a, b) => a.name.localeCompare(b.name)).map(a => html`<option value=${a.area_id} ?selected=${x.listArea === a.area_id}>${a.name}</option>`)}</select>`)}
         ${row(t("Label"), inp(x, "listLabel", "label_id"), t("optioneel: alleen entiteiten met dit Home Assistant-label (de label-ID)"))}
+        ${row(t("Alleen deze"), pick(x, "listInclude"), t("optioneel: precies deze entiteiten; dan tellen domein, ruimte en label niet meer"))}
+        ${row(t("Uitsluiten"), pick(x, "listExclude"), t("deze tellen nooit mee, ook als domein of ruimte passen"))}
         ${row(t("Knop voor alle"), inp(x, "listService", "cover.close_cover"), t("optioneel: een actie voor alle entiteiten in de lijst"))}
         ${x.listService ? row(t("Knoptekst"), inp(x, "listButton", t("Alles sluiten"))) : nothing}
         ${row(t("Nu"), html`<span class="sub">${t("{n} entiteiten", { n: pillMatches(p, x).length })}</span>`, t("tekst leeg = het aantal, bv. 3 open; zonder treffers is de pil verborgen"))}` : nothing}
