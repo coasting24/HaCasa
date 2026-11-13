@@ -141,7 +141,8 @@ export const featureStyles = `
   .popup .plist li.ped .sh{margin-bottom:2px}
   .popup .plist li.ped .pick{display:flex;flex-direction:column;gap:8px;min-width:0}
   .popup .plist li.ped .pick .chips{display:flex;flex-wrap:wrap;gap:6px}
-  .popup .plist li.ped .pick .chips button{height:30px;padding:0 11px;font-size:12px}
+  .popup .plist li.ped .pick .chips button,.popup .plist li.ped .f>.chips button{height:30px;padding:0 11px;font-size:12px;text-transform:none;letter-spacing:.2px}
+  .popup .plist li.ped .f>.chips{display:flex;flex-wrap:wrap;gap:6px}
   .popup .pillpv{margin-top:8px;padding:12px 14px;border-radius:var(--r-sm);background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)}
   .popup .pillpv .pills{margin:0}
   .popup .pillpv .pills button{cursor:default}
