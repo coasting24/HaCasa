@@ -47,6 +47,29 @@ const srow = ({ icon, svg, raw = false, name: n, sub = "", tr = nothing, val = n
   ${raw ? anyIco(icon) : ico(icon, svg)}<div class="nm">${n}${sub ? html`<small>${sub}</small>` : nothing}</div>${tr}
   ${toggle ? html`<span class="tog" @click=${ev => { ev.stopPropagation(); toggle(); }}></span>` : pill != null ? html`<span class="st">${pill}</span>` : html`<div class=${classMap({ val: true, dim })}>${val}${unit ? html`<small>${unit}</small>` : nothing}</div>`}</div>`;
 const sblock = (title, rows, meta = "") => rows.length ? html`<div class="sblk"><h3>${title}${meta ? html`<b>${meta}</b>` : nothing}</h3>${rows}</div>` : nothing;
+/** unreachable entities, one row per device (a TV's dozen sensors are one line), hideable for good (userConfig.offlineHidden,
+ *  device or entity ids). Returns the rows and the counts the page headers show; used by the system and the sensors page */
+function offlineRows(p) {
+  const hidden = new Set(p.userConfig?.offlineHidden || []), showHidden = !!p._offShowHidden, open = p._offOpen || (p._offOpen = new Set());
+  const all = p.rooms.flatMap(r => r.ents.all.filter(e => isDown(e) && !e.reg.entity_category).map(e => ({ e, r })));
+  const groups = new Map();
+  for (const x of all) { const k = x.e.reg.device_id ? "device:" + x.e.reg.device_id : x.e.id; if (!groups.has(k)) groups.set(k, { k, r: x.r, ents: [] }); groups.get(k).ents.push(x.e); }
+  const list = [...groups.values()].map(g => ({ ...g, hid: hidden.has(g.k), since: g.ents.map(e => e.state?.last_changed).filter(Boolean).sort()[0],
+    name: g.k.startsWith("device:") && g.ents.length > 1 ? deviceName(p.hass, g.k.slice(7)) : name(p.hass, g.ents[0]) }))
+    .sort((a, b) => a.r.name.localeCompare(b.r.name) || a.name.localeCompare(b.name));
+  const vis = list.filter(g => !g.hid), hid = list.filter(g => g.hid);
+  const setHidden = (k, on) => { const next = on ? [...hidden, k] : [...hidden].filter(x => x !== k); p.saveUser({ offlineHidden: next.length ? next : undefined }); };
+  const eye = g => html`<button class="ohide" title=${g.hid ? t("Tonen") : t("Verbergen")} @click=${ev => { ev.stopPropagation(); setHidden(g.k, !g.hid); }}><ha-icon icon=${g.hid ? "mdi:eye-off-outline" : "mdi:eye-outline"}></ha-icon></button>`;   // the icon shows the state, as in HaCasa's other lists
+  const row = g => { const many = g.ents.length > 1, isOpen = many && open.has(g.k);
+    return html`${srow({ icon: "mdi:lan-disconnect", svg: "network_off", name: g.name, dim: true,
+        sub: `${g.r.name} · ${many ? t("{n} entiteiten", { n: g.ents.length }) + " · " : ""}${t("sinds {t}", { t: relTime(g.since) })}`,
+        tr: eye(g), pill: t("Offline"),
+        tap: many ? () => { isOpen ? open.delete(g.k) : open.add(g.k); p.requestUpdate(); } : () => p.moreInfo(g.ents[0].id) })}
+      ${isOpen ? g.ents.map(e => html`<div class="osub">${srow({ icon: "mdi:circle-small", name: name(p.hass, e), sub: e.id, val: "", dim: true, tap: () => p.moreInfo(e.id) })}</div>`) : nothing}`; };
+  const rows = [...vis.map(row), ...(hid.length ? [html`<div class="srow dim otoggle" @click=${() => { p._offShowHidden = !showHidden; p.requestUpdate(); }}>${ico("mdi:eye-off-outline")}<div class="nm">${tn(hid.length, "{n} verborgen", "{n} verborgen")}<small>${showHidden ? t("tik om ze weer te verbergen") : t("tik om ze te tonen")}</small></div></div>`] : []),
+    ...(showHidden ? hid.map(row) : [])];
+  return { rows, count: vis.reduce((n, g) => n + g.ents.length, 0), devices: vis.length };
+}
 const pillbar = (list, cur, set) => html`<div class="ppills">${list.map(([k, l, icon, svg, n]) => html`<button class=${classMap({ on: cur === k })} @click=${() => set(k)}>${ico(icon, svg)}${n != null ? `${n} ${l}` : l}</button>`)}</div>`;
 const hbars = (rows, max, cls = "") => html`<div class="hbars">${rows.map(r => html`<i class=${classMap({ now: r.t.getHours() === new Date().getHours(), [cls]: !!cls })} style="height:${Math.max(3, (r.v || 0) / (max || 1) * 100)}%" title="${r.t.getHours()}:00 · ${(r.v || 0).toFixed(2)}"></i>`)}</div>`;
 const fmt = (v, d = 1) => v == null ? "–" : v.toLocaleString(locale(), { maximumFractionDigits: d });
@@ -124,7 +147,7 @@ function system(p) {
   const autos = Object.values(st).filter(s => domain(s.entity_id) === "automation");
   if (p.sysInfo === undefined) p.loadSystem();
   const info = p.sysInfo || {}, host = info.host?.hostname ? info.host : null, core = info.core?.version ? info.core : null;
-  const updates = pendingUpdates(p.hass), offline = p.rooms.flatMap(r => r.ents.all.filter(e => isDown(e) && !e.reg.entity_category).map(e => ({ e, r })));
+  const updates = pendingUpdates(p.hass), off = offlineRows(p);
   const kpis = [
     cpu[0] ? kpi({ icon: "mdi:chip", svg: "chip", em: t("Processor"), v: Math.round(num(cpu[0].state)), unit: "%", n: [temp[0] && `${Math.round(num(temp[0].state))} °C`, load[0] && `load ${num(load[0].state)}`].filter(Boolean).join(" · "), on: num(cpu[0].state) > 85, bar: num(cpu[0].state), tap: more(cpu[0].entity_id) }) : null,
     mem[0] ? kpi({ icon: "mdi:memory", svg: "chip", em: t("Geheugen"), v: Math.round(num(mem[0].state)), unit: "%", n: [memU[0] && val(memU[0]), swap[0] && `swap ${Math.round(num(swap[0].state))}%`].filter(Boolean).join(" · "), on: num(mem[0].state) > 85, bar: num(mem[0].state), tap: more(mem[0].entity_id) }) : null,
@@ -149,7 +172,7 @@ function system(p) {
       <div class="sblks">
         ${sblock("Home Assistant", ha, haCfg.version || "")}
         ${sblock(t("Host"), hostRows, `${updates.length} ${t("updates")}`)}
-        ${sblock(t("Onbereikbaar"), offline.map(({ e, r }) => srow({ icon: "mdi:lan-disconnect", svg: "network_off", name: name(p.hass, e), sub: `${r.name} · ${t("sinds {t}", { t: relTime(e.state?.last_changed) })}`, pill: t("Offline"), dim: true, tap: more(e.id) })), `${offline.length}`)}
+        ${sblock(t("Onbereikbaar"), off.rows, `${off.devices}`)}
       </div>` };
 }
 
@@ -157,7 +180,7 @@ function system(p) {
 function sensors(p) {
   const low = p.config.home?.lowBattery ?? 20, filter = p.sensFilter || "all", group = p.sensGroup || "room";
   const batteries = p.rooms.flatMap(r => r.ents.battery.map(e => ({ e, r, v: num(e.state?.state) }))).filter(x => x.v != null).sort((a, b) => a.v - b.v);
-  const offline = p.rooms.flatMap(r => r.ents.all.filter(e => isDown(e) && !e.reg.entity_category).map(e => ({ e, r })));
+  const off = offlineRows(p);   // per device, without the hidden ones
   const updates = pendingUpdates(p.hass);
   const battIds = batteries.map(b => b.e.id); if (battIds.length && p._battKey !== battIds.join()) p.loadBatteryEta(battIds);
   const eta = p.battEta || {}, more = id => () => p.moreInfo(id);
@@ -176,11 +199,11 @@ function sensors(p) {
   const attention = [
     ...(filter === "all" || filter === "update" ? updates.map(u => srow({ icon: u.kind === t("Firmware") ? "mdi:chip" : "mdi:update", svg: "update", name: u.title, sub: `${u.busy ? t("Bezig…") : `${u.from || "?"} → ${u.to || "?"}`}${u.canInstall ? " · " + t("tik = installeren") : ""}`, pill: t("Update"), on: true, tap: () => installUpdate(p, u) })) : []),
     ...(filter === "all" || filter === "battery" ? (filter === "battery" ? batteries : lowB).map(({ e, r, v }) => R.batt(e, r, v, true)) : []),
-    ...(filter === "all" || filter === "offline" ? offline.map(({ e, r }) => srow({ icon: "mdi:lan-disconnect", svg: "network_off", name: name(p.hass, e), sub: `${r.name} · ${t("sinds {t}", { t: relTime(e.state?.last_changed) })}`, pill: t("Offline"), dim: true, tap: more(e.id) })) : []),
+    ...(filter === "all" || filter === "offline" ? off.rows : []),
   ];
   const kinds = [[t("Klimaat"), r => [...r.ents.temp.map(e => R.temp(e, r, true)), ...r.ents.hum.map(e => R.hum(e, r, true))]], [t("Deuren & ramen"), r => [...r.ents.doors.map(e => R.door(e, r, true, "door")), ...r.ents.windows.map(e => R.door(e, r, true, "window"))]], [t("Beweging"), r => r.ents.motion.map(e => R.motion(e, r, true))], [t("Overig"), r => [...r.ents.other, ...r.ents.details].map(e => R.other(e, r, true))], [t("Batterijen"), r => r.ents.battery.filter(e => num(e.state?.state) != null).map(e => R.batt(e, r, num(e.state.state), true))]];
-  const pills = [["all", t("Alles"), "mdi:radar", "radar", null], ["battery", lowB.length === 1 ? t("batterij") : t("batterijen"), "mdi:battery", "battery", lowB.length], ["offline", t("onbereikbaar"), "mdi:lan-disconnect", "network_off", offline.length], ["update", updates.length === 1 ? t("update") : t("updates"), "mdi:update", "update", updates.length]];
-  return { sub: [tn(total, "{n} sensor", "{n} sensoren") + " " + tn(p.rooms.length, "in {n} ruimte", "in {n} ruimtes"), tn(lowB.length, "{n} batterij laag", "{n} batterijen laag"), t("{n} onbereikbaar", { n: offline.length }), updates.length ? tn(updates.length, "{n} update", "{n} updates") : ""].filter(Boolean).join(" · "),
+  const pills = [["all", t("Alles"), "mdi:radar", "radar", null], ["battery", lowB.length === 1 ? t("batterij") : t("batterijen"), "mdi:battery", "battery", lowB.length], ["offline", t("onbereikbaar"), "mdi:lan-disconnect", "network_off", off.devices], ["update", updates.length === 1 ? t("update") : t("updates"), "mdi:update", "update", updates.length]];
+  return { sub: [tn(total, "{n} sensor", "{n} sensoren") + " " + tn(p.rooms.length, "in {n} ruimte", "in {n} ruimtes"), tn(lowB.length, "{n} batterij laag", "{n} batterijen laag"), t("{n} onbereikbaar", { n: off.devices }), updates.length ? tn(updates.length, "{n} update", "{n} updates") : ""].filter(Boolean).join(" · "),
     head: html`<div class="ppills">${pills.map(([k, l, icon, svg, n]) => html`<button class=${classMap({ on: filter === k })} @click=${() => { p.sensFilter = k; }}>${ico(icon, svg)}${n != null ? `${n} ${l}` : l}</button>`)}</div>`,
     tools: html`<div class="seg pseg"><button class=${group === "room" ? "on" : ""} @click=${() => { p.sensGroup = "room"; }}>${t("Per ruimte")}</button><button class=${group === "kind" ? "on" : ""} @click=${() => { p.sensGroup = "kind"; }}>${t("Per soort")}</button></div>`,
     body: html`
@@ -310,6 +333,10 @@ export const pageStyles = `
   .srow .st{display:inline-flex;align-items:center;justify-content:center;height:22px;padding:1px 8px 0 10px;line-height:1;border-radius:999px;background:rgba(255,255,255,.12);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fg-2)}
   .srow.on .st{background:rgba(255,255,255,.9);color:#1d1d1f}
   .srow.dim{color:var(--fg-3)}
+  .srow .ohide{width:32px;height:32px;justify-self:end;display:grid;place-items:center;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;cursor:pointer;--mdc-icon-size:18px}   /* as .plist .btns button */
+  .osub .srow{padding-left:44px;border-top-color:rgba(255,255,255,.04)}
+  .osub .srow .nm small{font-family:ui-monospace,Menlo,monospace;font-size:11px}
+  .srow.otoggle{cursor:pointer}
   .srow.err .st{background:rgba(242,122,92,.6);color:#fff}
   .srow .tog{width:38px;height:22px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;justify-self:end;cursor:pointer;flex:none;transition:background .2s}
   .srow .tog::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;opacity:.6;transition:left .2s,opacity .2s}
