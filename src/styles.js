@@ -15,6 +15,7 @@ import { popup2Styles } from "./popups2.js";
 import { skyStyles } from "./sky.js";
 import { landscapeStyles } from "./landscape.js";
 import { diaryStyles } from "./diary.js";
+import { travelStyles } from "./timetravel.js";
 
 // Started from our own Homio-style mockup; scoped to the panel host.
 export const styles = css`
@@ -958,5 +959,6 @@ export const styles = css`
   ${unsafeCSS(skyStyles)}
   ${unsafeCSS(landscapeStyles)}
   ${unsafeCSS(diaryStyles)}
+  ${unsafeCSS(travelStyles)}
   ${unsafeCSS(motionStyles)}
 `;

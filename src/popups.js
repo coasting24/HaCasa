@@ -13,6 +13,7 @@ import { modeList, toggleMode } from "./extras3.js";
 import { field, text, select, check, condFields } from "./settings.js";
 import { pillEditor, pillList, pillMatches } from "./pills.js";
 import { diaryPopup } from "./diary.js";
+import { timelinePopup } from "./timetravel.js";
 import { dragRows } from "./drag.js";
 import { defaultsForm, DEFAULT_TYPES } from "./defaults.js";
 import { LANGUAGES } from "./i18n.js";
@@ -205,7 +206,7 @@ function haCamPlayer(p) {
 }
 
 /** what the More menu offers: edit this page, the overview pages, the user's own links, Home Assistant and settings (popup and phone drawer) */
-export const moreItems = p => [...(canEdit(p) && !p.page && !p.settings ? [{ label: p.room ? t("Kamer bewerken") : t("Startpagina bewerken"), sub: t("kaarten toevoegen, verbergen en ordenen"), icon: "mdi:pencil-outline", wide: true, action: () => p.startEdit(p.room?.id || "home") }] : []), ...Object.entries(PAGES).map(([k, v]) => ({ key: k, label: t(v.label), sub: t(v.sub), icon: v.icon, path: "__" + k + "__" })), ...(p.config.more || []), { label: t("Home Assistant"), sub: t("Instellingen"), icon: "mdi:cog-outline", path: "/config" }, { label: t("Profiel"), sub: t("gebruiker en thema"), icon: "mdi:account-circle-outline", path: "/profile" }, { key: "settings", label: t("HaCasa instellingen"), sub: t("kamers, kaarten, foto's"), icon: "mdi:tune", path: "__settings__" }];
+export const moreItems = p => [...(canEdit(p) && !p.page && !p.settings ? [{ label: p.room ? t("Kamer bewerken") : t("Startpagina bewerken"), sub: t("kaarten toevoegen, verbergen en ordenen"), icon: "mdi:pencil-outline", wide: true, action: () => p.startEdit(p.room?.id || "home") }] : []), ...Object.entries(PAGES).map(([k, v]) => ({ key: k, label: t(v.label), sub: t(v.sub), icon: v.icon, path: "__" + k + "__" })), ...(p.config.more || []), { label: t("Tijdreis"), sub: t("de laatste 24 uur als tijdlijn"), icon: "mdi:history", action: () => p.openPopup({ type: "timeline" }) }, { label: t("Home Assistant"), sub: t("Instellingen"), icon: "mdi:cog-outline", path: "/config" }, { label: t("Profiel"), sub: t("gebruiker en thema"), icon: "mdi:account-circle-outline", path: "/profile" }, { key: "settings", label: t("HaCasa instellingen"), sub: t("kamers, kaarten, foto's"), icon: "mdi:tune", path: "__settings__" }];
 
 export function renderPopup(p, pop) {
   CUR = { p, pop };
@@ -470,6 +471,7 @@ export function renderPopup(p, pop) {
     }
     case "energy": return energyPopup(p, pop, UI());
     case "diary": return diaryPopup(p, pop, UI());
+    case "timeline": return timelinePopup(p, pop, UI());
     case "camera": {
       const s = hass.states[pop.s.entity_id] || pop.s;
       const src = camStream(s);
