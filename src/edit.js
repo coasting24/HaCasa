@@ -156,6 +156,7 @@ export const CARD_TYPES = [
   { id: "agenda", group: "panel", label: "Agenda", sub: "volgende afspraken", icon: "mdi:calendar-blank-outline", key: "agenda" },
   { id: "waste", group: "panel", label: "Afval", sub: "volgende ophaaldag", icon: "mdi:trash-can-outline", key: "waste" },
   { id: "energy", group: "panel", label: "Energie", sub: "vermogen en verbruik vandaag", icon: "mdi:flash-outline", key: "energy" },
+  { id: "diary", group: "panel", label: "Dagboek", sub: "het verhaal van de dag", icon: "mdi:book-open-variant", key: "diary" },
   { id: "attention", group: "panel", label: "Aandacht", sub: "onbereikbaar, batterij, updates", icon: "mdi:alert-circle-outline", key: "attention" },
   { id: "homeclimate", group: "panel", label: "Thermostaat (thuis)", sub: "de hoofdthermostaat", icon: "mdi:home-thermometer-outline", key: "climate" },
   { id: "security", group: "panel", label: "Beveiliging", sub: "alarm, deuren, sloten, camera's", icon: "mdi:shield-home-outline", key: "security" },

@@ -11,6 +11,7 @@ import { tw, motionOn } from "./motion.js";
 import { sky, feelsLike } from "./sky.js";
 import { authenticText } from "./authentic/index.js";
 import { landscape, phaseOf } from "./landscape.js";
+import { diaryCard } from "./diary.js";
 import { graphCard, stepGraph } from "./graph.js";
 import { peopleCard, securityCard, todoCard, todoEntity, evCard, evReady, timersCard, timerList, solarCard, solarReady, gardenCard, gardenReady } from "./cards2.js";
 import "./camsnap.js";
@@ -709,6 +710,7 @@ function homeAllCards(p, h) {
     <div class="n">${t("Energie")}</div><div class="s">${tw(`${Math.round(num(h.energy.power.state) ?? 0)} W`)}</div>
     <div class="lbl">${h.energy.today ? t("Vandaag {n} kWh", { n: num(h.energy.today.state)?.toFixed(1) }) : ""}</div><div class="i">${ico("mdi:flash-outline", "electric")}</div></div>`);
   if (gardenReady(p)) add("garden", t("Tuin"), gardenCard(p));
+  add("diary", t("Dagboek"), diaryCard(p));   // only shown once added (Add card → Diary): it loads the day's history
   return cards;
 }
 

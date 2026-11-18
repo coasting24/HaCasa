@@ -85,8 +85,11 @@ export function homeQuips(p, h) {
   if (!p.config?.personality || !h) return [];
   const out = [], add = (key, vars, seed = "") => out.push(line(p, key, vars, seed)), hour = new Date().getHours();
   const tOut = outside(p), lights = h.lightsOn?.length || 0;
-  const apps = (h.appliances || []).filter(a => !isHidden(p, a.id) && !a.plain).map(a => ({ a, st: applianceState(p.hass, a, cardCfg(p, a.id).threshold ?? 5), n: cardCfg(p, a.id).name || deviceName(p.hass, a.device) }));
-  const waiting = apps.find(x => x.st.st === "done" && x.st.doneAt && mins(x.st.doneAt) >= 20);
+  const apps = p.rooms.flatMap(r => r.ents.appliances).filter(a => !isHidden(p, a.id) && !a.plain).map(a => ({ a, st: applianceState(p.hass, a, cardCfg(p, a.id).threshold ?? 5), n: cardCfg(p, a.id).name || deviceName(p.hass, a.device) }));
+  // household appliances only (as in the diary): a fridge or a computer on a metered plug is no news
+  const REAL = /wasch|wash|spül|spuel|dish|vaat|trockner|dryer|droger|kaffee|coffee|koffie|ofen|oven|mikrowelle|micro|magnetron/i;
+  const real = apps.filter(x => x.a.op || x.a.wd || REAL.test(x.n));
+  const waiting = real.find(x => x.st.st === "done" && x.st.doneAt && mins(x.st.doneAt) >= 20);
   const longDoor = (h.doorsOpen || []).find(e => mins(e.state?.last_changed) >= 10);
   const w = num(h.energy?.power?.state);
   if (h.windowsOpen?.length && tOut != null && tOut < 10) add("coldWindows", { n: h.windowsOpen.length, t: Math.round(tOut) });
@@ -98,7 +101,7 @@ export function homeQuips(p, h) {
   if (lights >= 8) add("manyLights", { n: lights });
   if (h.temp != null && h.temp >= 26) add("hotInside", { t: Math.round(h.temp) });
   if (h.temp != null && h.temp <= 17) add("coldInside", { t: Math.round(h.temp) });
-  const running = apps.find(x => x.st.st === "running");
+  const running = real.find(x => x.st.st === "running");
   if (running) add("applianceRunning", { name: running.n }, running.a.id);
   if (!out.length && !lights && !h.doorsOpen?.length && !h.windowsOpen?.length) add("calm", {});
   return out.slice(0, 2);

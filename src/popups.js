@@ -12,6 +12,7 @@ import { roomPresets, snapshot, applyPreset, presetMatches, installUpdate, pendi
 import { modeList, toggleMode } from "./extras3.js";
 import { field, text, select, check, condFields } from "./settings.js";
 import { pillEditor, pillList, pillMatches } from "./pills.js";
+import { diaryPopup } from "./diary.js";
 import { dragRows } from "./drag.js";
 import { defaultsForm, DEFAULT_TYPES } from "./defaults.js";
 import { LANGUAGES } from "./i18n.js";
@@ -468,6 +469,7 @@ export function renderPopup(p, pop) {
       return wrap(r.name, t("Lichtscènes"), list.length ? t("{n} opgeslagen · tik = activeren", { n: list.length }) : t("Opgeslagen lampstanden voor deze kamer"), body);
     }
     case "energy": return energyPopup(p, pop, UI());
+    case "diary": return diaryPopup(p, pop, UI());
     case "camera": {
       const s = hass.states[pop.s.entity_id] || pop.s;
       const src = camStream(s);

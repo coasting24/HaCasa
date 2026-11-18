@@ -240,6 +240,20 @@ export function makeHass(onChange) {
       if (msg.type === "call_service" && msg.domain === "weather") { const h = new Date(); h.setMinutes(0, 0, 0); const conds = ["partlycloudy", "rainy", "rainy", "cloudy", "cloudy", "partlycloudy", "sunny", "sunny", "clear-night", "clear-night"];
         if (msg.service_data.type === "hourly") return Promise.resolve({ response: { "weather.home": { forecast: Array.from({ length: 24 }, (_, i) => ({ datetime: new Date(h.getTime() + i * 36e5).toISOString(), condition: conds[i % conds.length], temperature: 14 - i * .4, precipitation_probability: [10, 80, 70, 40, 20, 0, 0, 0][i] ?? 0, precipitation: [0, 1.2, 0.8, 0.2, 0, 0, 0, 0][i] ?? 0 })) } } });
         return Promise.resolve({ response: { "weather.home": { forecast: Array.from({ length: 7 }, (_, i) => { const d = new Date(h); d.setDate(d.getDate() + i); return { datetime: d.toISOString(), condition: ["partlycloudy", "rainy", "partlycloudy", "sunny", "sunny", "rainy", "cloudy"][i], temperature: [14, 12, 14, 16, 19, 16, 11][i], templow: [9, 8, 7, 6, 8, 9, 5][i], precipitation_probability: [80, 90, 20, 0, 0, 40, 70][i] }; }) } } }); }
+      // several entities at once (the diary): a believable day for people, lights, doors, windows, motion and appliance power
+      if (msg.type === "history/history_during_period" && msg.entity_ids.length > 1) {
+        const t0 = Date.parse(msg.start_time), t1 = msg.end_time ? Date.parse(msg.end_time) : Date.now(), at = h => (t0 + h * 3600000) / 1000, out = {};
+        const seq = (pairs, on = "on", off = "off") => [{ s: off, lu: t0 / 1000 }, ...pairs.flatMap(([a, b]) => [{ s: on, lu: at(a) }, { s: off, lu: at(b) }])].filter(x => x.lu * 1000 <= t1);
+        msg.entity_ids.forEach((id, i) => {
+          const d = id.split(".")[0];
+          if (d === "person") out[id] = [{ s: "home", lu: t0 / 1000 }, ...(i % 3 === 2 ? [] : [{ s: "not_home", lu: at(7.6 + i * .4) }, { s: "home", lu: at(16.8 + i * .7) }])].filter(x => x.lu * 1000 <= t1);
+          else if (d === "light") out[id] = seq([[6.6 + i * .05, 8.1], [17.9 + (i % 3) * .3, 22.6 + (i % 2) * .8]]);
+          else if (d === "binary_sensor") out[id] = seq([[7.4, 7.45], [12.1, 12.2], [17.2, 17.25], [19.5, 19.6], ...(i % 2 ? [[20.3, 20.4], [21.1, 21.2]] : [])]);
+          else if (d === "sensor") out[id] = [{ s: "2", lu: t0 / 1000 }, { s: "1800", lu: at(9 + i % 4) }, { s: "2", lu: at(10.4 + i % 4) }, ...(i % 2 ? [{ s: "1500", lu: at(19) }, { s: "2", lu: at(20.1) }] : [])].filter(x => x.lu * 1000 <= t1);
+          else out[id] = [];
+        });
+        return Promise.resolve(out);
+      }
       if (msg.type === "history/history_during_period" && msg.entity_ids[0].startsWith("sensor.")) { const now = Date.now(), hrs = (now - Date.parse(msg.start_time)) / 3600000, id = msg.entity_ids[0], base = parseFloat(hass.states[id]?.state) || 20;
         return Promise.resolve({ [id]: Array.from({ length: Math.round(hrs * 4) + 1 }, (_, i) => { const h = i / 4 - hrs; return { s: String(base + Math.sin((h + 9) / 3.8) * 1.3 + Math.sin(h * 1.7) * .25 - .4), lu: (now + h * 3600000) / 1000 }; }) }); }
       if (msg.type === "history/history_during_period" && msg.entity_ids[0].startsWith("climate.")) { const id = msg.entity_ids[0], st = Date.parse(msg.start_time), now = Date.now();
