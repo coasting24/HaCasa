@@ -1,6 +1,7 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
 import { blurredBg, edgeBg } from "./perf.js";
+import { homeQuips, roomQuips } from "./quips.js";
 import { t, locale, setLang, setTimeFormat, pickLang, inText, timeOpts, hourLabel } from "./i18n.js";
 import { LitElement, html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
@@ -844,7 +845,7 @@ class HacasaNova extends LitElement {
   }
 
   renderHome(h) {
-    const items = [];
+    const items = [...homeQuips(this, h)];   // Persoonlijkheid: remarks first (quips.js)
     if (h.energy.today) items.push({ k: "energy", icon: "mdi:flash-outline", title: t("Energie"), text: t("Vandaag {n} kWh verbruikt", { n: (+h.energy.today.state).toFixed(1) }) + (h.energy.returned ? ", " + t("{n} kWh teruggeleverd", { n: (+h.energy.returned.state).toFixed(1) }) : "") });
     if (h.waste[0]) items.push({ k: "waste", icon: "mdi:trash-can-outline", title: h.waste[0].label, text: cap(wasteSentence(h.waste[0]).replace(h.waste[0].label, "").replace(/^[:\s]+/, "")) });
     const ev = nextEvent(this.events || []); if (ev) items.push({ k: "agenda", icon: "mdi:calendar-blank-outline", title: ev.summary, text: eventWhenShort(ev) });
@@ -934,7 +935,7 @@ class HacasaNova extends LitElement {
 
   renderRoom(r) {
     const e = r.ents;
-    const items = [];
+    const items = [...roomQuips(this, r)];
     for (const d of [...e.doors, ...e.windows].filter(x => isOn(x.state))) items.push({ k: "doors", icon: "mdi:door-open", title: name(this.hass, d), text: t("Staat open") });
     for (const m of e.media.filter(x => x.state?.state === "playing")) items.push({ k: "media", icon: "mdi:play", title: name(this.hass, m), text: t("Speelt {title}", { title: m.state.attributes.media_title || m.state.attributes.app_name || "" }) });
     items.push(...this.applianceItems(e.appliances));
