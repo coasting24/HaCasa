@@ -10,7 +10,7 @@ import { label, mediaView, canPower, condText, condIcon, condSvg, ico, cardCfg, 
 import { liveTick } from "./cards2.js";
 import { energyFlow } from "./cards2.js";
 import { calendarBody, whenText } from "./calendar.js";
-import { sky, wxIcon, feelsLike } from "./sky.js";
+import { sky, wxIcon, feelsLike, nightAt, nightCond } from "./sky.js";
 
 const hm = d => new Date(d).toLocaleTimeString(locale(), timeOpts());
 /** colour weather glyphs for the popup (the cards keep the thin-line icons) */
@@ -85,7 +85,7 @@ export function weatherPopup(p, pop, ui) {
       <div class="rain">${rain.pts.map((v, i) => { const at = hm(Date.now() + (i + .5) * rain.minutes / rain.pts.length * 60000); return html`<i class=${pop.rainSel === i ? "sel" : ""} style=${`height:${Math.max(4, v / rmax * 100)}%`} data-tip=${`${at} · ${fmt(v)} mm/h`} @click=${() => p.openPopup({ ...pop, rainSel: pop.rainSel === i ? undefined : i })}></i>`; })}</div>
       <div class="bars-x">${[0, .25, .5, .75, 1].map(f => html`<span>${f ? hm(Date.now() + f * rain.minutes * 60000) : t("nu")}</span>`)}</div>` : nothing}
     ${hourly.length ? html`<div class="prow"><span>${t("Per uur")}</span><b>${hourly.some(f => f.precipitation_probability != null) ? t("kans op neerslag") : ""}</b></div>
-      <div class="fc hours h8">${hourly.map((f, i) => html`<div class=${i === 0 ? "now" : ""}>${new Date(f.datetime).toLocaleTimeString(locale(), timeOpts({ hour: "2-digit" }))}${wxi(f.condition)}<b>${Math.round(f.temperature)}°</b>${prob(f) ? html`<em>${prob(f)}</em>` : nothing}</div>`)}</div>` : nothing}
+      <div class="fc hours h8">${hourly.map((f, i) => html`<div class=${i === 0 ? "now" : ""}>${new Date(f.datetime).toLocaleTimeString(locale(), timeOpts({ hour: "2-digit" }))}${wxi(nightCond(f.condition, nightAt(p.hass, f.datetime, f.is_daytime)))}<b>${Math.round(f.temperature)}°</b>${prob(f) ? html`<em>${prob(f)}</em>` : nothing}</div>`)}</div>` : nothing}
     ${dfc.length ? html`<div class="prow"><span>${t("Deze week")}</span><b>${Math.round(lo)}° … ${Math.round(hi)}°</b></div>
       <div class="wk">${dfc.map(f => { const d = new Date(f.datetime), isT = d.toDateString() === todayKey, l = num(f.templow), h = num(f.temperature);
         return html`<div class=${classMap({ wd: true, today: isT })}><span>${isT ? t("Vandaag") : d.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "")}</span>${wxIcon(f.condition, 22)}<span class="lo">${l != null ? Math.round(l) + "°" : ""}</span><div class="range"><i style=${`left:${((l ?? h) - lo) / span * 100}%;width:${Math.max(4, ((h ?? l) - (l ?? h)) / span * 100)}%`}></i></div><span class="hi">${h != null ? Math.round(h) + "°" : ""}</span><em>${prob(f)}</em></div>`; })}</div>` : nothing}

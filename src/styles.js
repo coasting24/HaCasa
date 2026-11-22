@@ -17,6 +17,7 @@ import { landscapeStyles } from "./landscape.js";
 import { diaryStyles } from "./diary.js";
 import { travelStyles } from "./timetravel.js";
 import { liveStyles } from "./livephoto.js";
+import { weatherStyles } from "./bgweather.js";
 
 // Started from our own Homio-style mockup; scoped to the panel host.
 export const styles = css`
@@ -962,5 +963,6 @@ export const styles = css`
   ${unsafeCSS(diaryStyles)}
   ${unsafeCSS(travelStyles)}
   ${unsafeCSS(liveStyles)}
+  ${unsafeCSS(weatherStyles)}
   ${unsafeCSS(motionStyles)}
 `;

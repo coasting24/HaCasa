@@ -1,6 +1,7 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
 import { liveLayer } from "./livephoto.js";
+import { weatherLayer } from "./bgweather.js";
 import { blurredBg, edgeBg } from "./perf.js";
 import { homeQuips, roomQuips } from "./quips.js";
 import { t, locale, setLang, setTimeFormat, pickLang, inText, timeOpts, hourLabel } from "./i18n.js";
@@ -17,7 +18,7 @@ import { renderPage, PAGES, PAGE_ALIAS } from "./pages.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
 import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
 import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, deviceHidden, anyIco, wxDays } from "./cards.js";
-import { wxIcon, wxDefs, setWxStyle } from "./sky.js";
+import { wxIcon, wxDefs, setWxStyle, nightAt, nightCond } from "./sky.js";
 import { renderPills, pillTemplates } from "./pills.js";
 import { iconPicker } from "./iconpicker.js";
 import { quickRow, watchTriggers, presetCard, selfUpdate } from "./features.js";
@@ -718,6 +719,7 @@ class HacasaNova extends LitElement {
     return html`${wxDefs}
       ${this._prevBg ? html`<div class="bg out" style="--bg:url(&quot;${this._prevBg}&quot;)"></div>` : nothing}
       ${keyed(bg || "plain", isPage ? html`<div class="bg plain"></div>` : html`<div class=${classMap({ bg: true, grad: !this.bgOk(bg) })} style=${this.bgStyle(bg, room?.slug)}>${this.bgOk(bg) && (room || !this.moodImages().some(u => bg.startsWith(u.replace(/\.jpg$/, ".")))) ? liveLayer(this, room, bg) : nothing}</div>`)}
+      ${isPage ? nothing : weatherLayer(this, room)}
       <nav class=${classMap({ nav: true, open: this.drawer, srch: !!this.searchOpen, topnav: this.config.phoneNav === "top" })}>
         <a class="logo" @click=${() => this.go(null)}><span class="mark"><img class="ico logo" src=${icon("hacasa")} alt="HaCasa"></span>${brandTitle(this.config.title || t("Thuis") + ".")}</a>
         ${this.renderLinks(room, isPage)}
@@ -856,11 +858,11 @@ class HacasaNova extends LitElement {
     const th = num(tomorrow?.temperature), tl = num(tomorrow?.templow);
     const tile = this.config.wxIcons === "scene";   // "sky tile": everything below sits on one glass tile tinted by the weather
     return html`<div class=${classMap({ wx: true, wxm: !!this.config.home?.wxMobile, wxtile: tile })} @click=${ev => { ev.stopPropagation(); this.openPopup({ type: "weather" }); }}>
-      ${tile ? wxIcon(w.state, 0, true) : nothing}
-      <div class="big">${tile ? nothing : wxIcon(w.state, 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
+      ${tile ? wxIcon(nightCond(w.state, nightAt(this.hass)), 0, true) : nothing}
+      <div class="big">${tile ? nothing : wxIcon(nightCond(w.state, nightAt(this.hass)), 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
       <div class="cnd">${condText(w.state)}${wxExpect(this) ? html`<i class="dt"></i>${wxExpect(this)}` : nothing}</div>
       ${line ? html`<div class="hl">${line}</div>` : nothing}
-      ${hours.length || tomorrow ? html`<div class="wbar">${hours.map(f => html`<div>${hourLabel(new Date(f.datetime), t("{h}u", { h: new Date(f.datetime).getHours() }))}${wxIcon(f.condition, 24)}<b>${Math.round(num(f.temperature) ?? 0)}°</b></div>`)}
+      ${hours.length || tomorrow ? html`<div class="wbar">${hours.map(f => html`<div>${hourLabel(new Date(f.datetime), t("{h}u", { h: new Date(f.datetime).getHours() }))}${wxIcon(nightCond(f.condition, nightAt(this.hass, f.datetime, f.is_daytime)), 24)}<b>${Math.round(num(f.temperature) ?? 0)}°</b></div>`)}
         ${tomorrow ? html`<div class="tm">${t("Morgen")}${wxIcon(tomorrow.condition, 24)}<b>${th != null ? Math.round(th) + "°" : ""}${tl != null ? html`<em> / ${Math.round(tl)}°</em>` : nothing}</b></div>` : nothing}</div>` : nothing}
     </div>`;
   }

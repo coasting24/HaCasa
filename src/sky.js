@@ -28,6 +28,7 @@ const DEFS = `<defs>
   <linearGradient id="hcw-clg" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="140"><stop offset="0" stop-color="#dfe4ec"/><stop offset="1" stop-color="#9ea8b8"/></linearGradient>
   <linearGradient id="hcw-cld" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="140"><stop offset="0" stop-color="#b9b3cf"/><stop offset="1" stop-color="#6f6890"/></linearGradient>
   <radialGradient id="hcw-moon" cx="35%" cy="35%" r="75%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#c9d4f0"/></radialGradient>
+  <radialGradient id="hcw-moonw" cx="35%" cy="35%" r="75%"><stop offset="0" stop-color="#fff4cf"/><stop offset="1" stop-color="#f2d27a"/></radialGradient>
   <mask id="hcw-mm"><rect width="200" height="200" fill="#fff"/><circle cx="122" cy="80" r="44" fill="#000"/></mask></defs>`;
 function glyph(c) {
   const sun = (cx, cy, k) => `<g transform="translate(${cx - 100 * k} ${cy - 100 * k}) scale(${k})"><g class="w-rot">${Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return `<line x1="${(100 + Math.cos(a) * 58).toFixed(1)}" y1="${(100 + Math.sin(a) * 58).toFixed(1)}" x2="${(100 + Math.cos(a) * 78).toFixed(1)}" y2="${(100 + Math.sin(a) * 78).toFixed(1)}" stroke="#ffd166" stroke-width="12" stroke-linecap="round"/>`; }).join("")}</g><circle cx="100" cy="100" r="46" fill="url(#hcw-sun)"/></g>`;
@@ -41,6 +42,7 @@ function glyph(c) {
     case "sunny": g = sun(100, 100, 1); break;
     case "clear-night": g = `<circle cx="100" cy="100" r="54" fill="url(#hcw-moon)" mask="url(#hcw-mm)"/>` + [[156, 56, 7], [164, 124, 5], [58, 46, 5]].map(([x, y, r], i) => `<circle class="w-tw" style="animation-delay:-${i * .8}s" cx="${x}" cy="${y}" r="${r}" fill="#fff"/>`).join(""); break;
     case "partlycloudy": g = sun(124, 76, .8) + cloud("hcw-cl", -8, 24, .95); break;
+    case "partlycloudy-night": g = `<g transform="translate(50 -4) scale(.74)"><circle cx="100" cy="100" r="54" fill="url(#hcw-moonw)" mask="url(#hcw-mm)"/></g><circle class="w-tw" cx="62" cy="50" r="5" fill="#fff"/>` + cloud("hcw-cl", -8, 24, .95); break;
     case "rainy": g = cloud("hcw-cl", 0, -12) + drops(4, 66, 146); break;
     case "pouring": g = cloud("hcw-clg", 0, -16) + drops(6, 56, 140, 19); break;
     case "lightning": g = cloud("hcw-cld", 0, -16) + bolt; break;
@@ -56,6 +58,19 @@ function glyph(c) {
   }
   return `<svg viewBox="16 16 168 168" aria-hidden="true">${g}</svg>`;
 }
+/** is it night at this moment (now when `when` is empty)? A forecast's own is_daytime first, else sun.sun: its state for
+ *  now, today's sunrise and sunset times of day for a forecast hour */
+export function nightAt(hass, when, isDay) {
+  if (isDay === true) return false; if (isDay === false) return true;
+  const sun = hass?.states?.["sun.sun"]; if (!sun) return false;
+  const d = when ? new Date(when) : new Date();
+  if (!when || Math.abs(d - Date.now()) < 30 * 60000) return sun.state === "below_horizon";
+  const rise = sun.attributes.next_rising, set = sun.attributes.next_setting; if (!rise || !set) return false;
+  const tod = x => { const t = new Date(x); return t.getHours() * 60 + t.getMinutes(); };
+  const m = tod(d); return m < tod(rise) || m >= tod(set);
+}
+/** HA has only "clear-night": at night a sunny sky gets the moon, a partly cloudy one the moon behind a cloud */
+export const nightCond = (c, night) => !night ? c : c === "sunny" ? "clear-night" : c === "partlycloudy" ? "partlycloudy-night" : c;
 const ICONS = new Map();
 let wxStyle = "";
 /** icon style from the settings (config.wxIcons): "" = the drawn icons above, "scene" = a sky tile (sceneGlyph) behind the current weather */
@@ -80,6 +95,7 @@ const SCENE = {
   sunny: ["oklch(0.78 0.11 232)", "oklch(0.62 0.13 246)", "oklch(0.80 0.15 75 / 0.5)", "sun", ""],
   "clear-night": [...NIGHT, "moon", "stars"],
   partlycloudy: ["oklch(0.74 0.10 235)", "oklch(0.58 0.13 250)", "oklch(0.70 0.12 240 / 0.45)", "sun", "clouds"],
+  "partlycloudy-night": [...NIGHT, "moon", "stars clouds"],
   cloudy: ["oklch(0.72 0.03 250)", "oklch(0.55 0.03 255)", "oklch(0.72 0.02 250 / 0.40)", "", "clouds"],
   rainy: ["oklch(0.66 0.07 220)", "oklch(0.48 0.08 228)", "oklch(0.64 0.09 218 / 0.45)", "", "clouds rain"],
   pouring: ["oklch(0.60 0.08 224)", "oklch(0.42 0.09 232)", "oklch(0.58 0.10 222 / 0.5)", "", "clouds pour"],
