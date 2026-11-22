@@ -16,7 +16,7 @@ import { renderSettings, loadUserConfig, saveUserConfig, mergeConfig } from "./s
 import { renderPage, PAGES, PAGE_ALIAS } from "./pages.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
 import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
-import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, anyIco, wxDays } from "./cards.js";
+import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, deviceHidden, anyIco, wxDays } from "./cards.js";
 import { wxIcon, wxDefs, setWxStyle } from "./sky.js";
 import { renderPills, pillTemplates } from "./pills.js";
 import { iconPicker } from "./iconpicker.js";
@@ -50,12 +50,12 @@ class HacasaNova extends LitElement {
   static properties = {
     hass: { attribute: false }, narrow: { type: Boolean }, route: { attribute: false }, panel: { attribute: false },
     config: { state: true }, popup: { state: true }, drawer: { state: true }, edit: { state: true }, editKey: { state: true }, editOrder: { state: true }, editDrag: { state: true }, iconPick: { state: true }, tick: { state: true }, now: { state: true },
-    draft: { state: true }, saved: { state: true }, ghLatest: { state: true }, stab: { state: true }, attFilter: { state: true }, search: { state: true }, sysInfo: { state: true }, netHist: { state: true }, battEta: { state: true }, notifications: { state: true }, idle: { state: true }, toast: { state: true }, events: { state: true }, templates: { state: true }, navFloor: { state: true }, searchOpen: { state: true }, wx: { state: true }, lightHist: { state: true }, climateHist: { state: true }, plugHist: { state: true }, plugTimers: { state: true }, sensFilter: { state: true }, sensGroup: { state: true }, pageFilter: { state: true }, pageGroup: { state: true }, energyHist: { state: true }, graphHist: { state: true }, todo: { state: true },
+    draft: { state: true }, saved: { state: true }, roomDrag: { state: true }, ghLatest: { state: true }, stab: { state: true }, attFilter: { state: true }, search: { state: true }, sysInfo: { state: true }, netHist: { state: true }, battEta: { state: true }, notifications: { state: true }, idle: { state: true }, toast: { state: true }, events: { state: true }, templates: { state: true }, navFloor: { state: true }, searchOpen: { state: true }, wx: { state: true }, stripScrolled: { state: true }, lightHist: { state: true }, climateHist: { state: true }, plugHist: { state: true }, plugTimers: { state: true }, sensFilter: { state: true }, sensGroup: { state: true }, pageFilter: { state: true }, pageGroup: { state: true }, energyHist: { state: true }, graphHist: { state: true }, todo: { state: true },
   };
 
   constructor() {
     super();
-    this.config = DEFAULT_CONFIG; this.popup = null; this.search = ""; this.drawer = false; this.tick = 0; this.now = clock(); this.notifications = []; this.idle = false;
+    this.config = structuredClone(DEFAULT_CONFIG); this.popup = null; this.search = ""; this.drawer = false; this.tick = 0; this.now = clock(); this.notifications = []; this.idle = false;
     this._drag = 0;
     if (!document.querySelector(`link[href="${FONT}"]`)) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = FONT; document.head.appendChild(l); }
   }
@@ -285,6 +285,7 @@ class HacasaNova extends LitElement {
       template instances fall back to the `visible` field of their template */
   condHiddenCard(key) {
     const c = cardCfg(this, key);
+    if (deviceHidden(c)) return true;
     if (c.visEntity || c.tplVisible) return condHiddenBy(this, c, "card:" + key);
     if (key.startsWith("tpl:")) { const m = templateInstance(this, key); return m ? condHidden(this, key, m.visible, m.visibleInvert) : false; }
     return false;
@@ -327,9 +328,11 @@ class HacasaNova extends LitElement {
     this.saveUser({ pages, kept30: true });
   }
   tickerOn(key, items) {
-    const pc = this.pageCfg(key), tk = pc.ticker || {};
+    const pc = this.pageCfg(key), tk = pc.ticker || {}, skip = new Set(pc.tickerSkip || []), n = this.home?.home ?? 0;
+    // #202: per page only while someone is home / nobody is home, and single sensors left out
+    const quiet = (pc.tickerWhen === "home" && !n) || (pc.tickerWhen === "away" && n > 0);
     const custom = (pc.lines || []).map((l, i) => ({ k: "custom", uicon: l.icon || "mdi:text", text: this.templates?.[`line:${key}:${i}`]?.state })).filter(x => x.text && String(x.text).trim());
-    return [...custom, ...items.filter(it => tk[it.k] !== false)];
+    return [...custom, ...(quiet ? [] : items.filter(it => tk[it.k] !== false && !(it.id && skip.has(it.id))))];
   }
   /** appliance features on/off for a plug; the popup stays open on the matching card form */
   async setApplianceMode(key, on) {
@@ -355,10 +358,10 @@ class HacasaNova extends LitElement {
     if (!url) return false;
     const c = this._bgCache || (this._bgCache = new Map()); if (c.has(url)) return c.get(url);
     // photos that 404'd are remembered for the session (without the cache-bust), so every reload does not retry 8 paths per room (#149)
-    const key = url.replace(/\?v=[^&]*$/, ""), missed = this._bgMiss || (this._bgMiss = new Set((() => { try { return JSON.parse(sessionStorage.getItem("hcn:bgmiss") || "[]"); } catch { return []; } })()));
-    if (missed.has(key)) { c.set(url, false); return false; }
+    const key = url.replace(/\?v=[^&]*$/, ""), missed = this._bgMiss || (this._bgMiss = new Map((() => { try { const v = JSON.parse(sessionStorage.getItem("hcn:bgmiss") || "{}"); return Array.isArray(v) ? [] : Object.entries(v); } catch { return []; } })()));
+    if (Date.now() - (missed.get(key) || 0) < 10 * 60000) { c.set(url, false); return false; }   // retried after 10 minutes: a miss while HA restarts doesn't stick for the whole tab session
     c.set(url, true); const im = new Image();
-    im.onerror = () => { c.set(url, false); missed.add(key); try { sessionStorage.setItem("hcn:bgmiss", JSON.stringify([...missed])); } catch {} this.requestUpdate(); };
+    im.onerror = () => { c.set(url, false); missed.set(key, Date.now()); try { sessionStorage.setItem("hcn:bgmiss", JSON.stringify(Object.fromEntries(missed))); } catch {} this.requestUpdate(); };
     im.src = url; return true;
   }
   /** photo for a room (or home): the first candidate path that loads, trying .jpg/.jpeg/.png/.webp for each */
@@ -639,8 +642,13 @@ class HacasaNova extends LitElement {
   /** 24-hour on/off history of a light for the "today" card bottom: minutes on per clock hour, total and switch count */
   async loadLightHist(id) {
     const cur = this.lightHist?.[id]; if (cur?.hits && Date.now() - cur.at < 10 * 60000) return; if (this._lhBusy?.has(id)) return;
+    if (Date.now() - (this._lhFail?.get(id) || 0) < 60000) return;   // a failed read is tried again after a minute, not on every render
     (this._lhBusy ||= new Set()).add(id);
-    const rows = (await fetchHistory(this.hass, id, 24)) || [];
+    const rows = await fetchHistory(this.hass, id, 24);
+    this._lhBusy.delete(id);
+    // the recorder didn't answer (HA restarting, connection lost): keep the "…" instead of a day of "0 min on · 0×"
+    if (!rows) { (this._lhFail ||= new Map()).set(id, Date.now()); return; }
+    this._lhFail?.delete(id);
     rows.sort((a, b) => a.t - b.t);
     const now = Date.now(), start = now - 24 * 3600000, bars = Array(24).fill(0), steps = Array(96).fill(0), hits = Array(24).fill(0); let onMin = 0, count = 0;   // hits: times it turned on per hour, oldest first
     for (let i = 0; i < rows.length; i++) {
@@ -650,7 +658,6 @@ class HacasaNova extends LitElement {
       for (let x = a; x < b; x += 60000) { bars[new Date(x).getHours()] += 1; steps[Math.min(95, Math.floor((x - start) / 900000))] += 1 / 15; onMin++; }
     }
     this.lightHist = { ...(this.lightHist || {}), [id]: { at: Date.now(), bars: bars.map(m => m / 60), steps: steps.map(v => Math.min(1, v)), onMin, count, hits } };
-    this._lhBusy.delete(id);
   }
   /** minutes a thermostat actively heated / cooled since midnight (hvac_action history) for the climate card bottom */
   async loadClimateHist(id) {
@@ -667,8 +674,8 @@ class HacasaNova extends LitElement {
   }
   _stripDown(e) { if (e.pointerType !== "mouse") return; const st = e.currentTarget; this._down = { x: e.clientX, s: st.scrollLeft, st }; this._drag = 0; st.classList.add("drag");
     const move = ev => { if (!this._down) return; const dx = ev.clientX - this._down.x; this._drag = Math.max(this._drag, Math.abs(dx)); this._down.st.scrollLeft = this._down.s - dx; };
-    const up = () => { const st = this._down?.st; this._down = null; removeEventListener("pointermove", move); removeEventListener("pointerup", up); setTimeout(() => this._drag = 0, 50); if (st) this._glide(st, st.scrollLeft, true); };
-    addEventListener("pointermove", move); addEventListener("pointerup", up); }
+    const up = () => { const st = this._down?.st; this._down = null; removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); removeEventListener("blur", up); setTimeout(() => this._drag = 0, 50); if (st) this._glide(st, st.scrollLeft, true); };
+    addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up); addEventListener("blur", up); }
   /** a tap on the strip's own padding (touch screens, where the strip catches pointers): pass it to what lies below */
   _stripTap(e) {
     const st = e.currentTarget; if (e.target !== st) return;
@@ -950,12 +957,14 @@ class HacasaNova extends LitElement {
   renderRoom(r) {
     const e = r.ents;
     const items = [...roomQuips(this, r)];
-    for (const d of [...e.doors, ...e.windows].filter(x => isOn(x.state))) items.push({ k: "doors", icon: "mdi:door-open", title: name(this.hass, d), text: t("Staat open") });
-    for (const m of e.media.filter(x => x.state?.state === "playing")) items.push({ k: "media", icon: "mdi:play", title: name(this.hass, m), text: t("Speelt {title}", { title: m.state.attributes.media_title || m.state.attributes.app_name || "" }) });
+    for (const d of [...e.doors, ...e.windows].filter(x => isOn(x.state))) items.push({ k: "doors", id: d.id, icon: "mdi:door-open", title: name(this.hass, d), text: t("Staat open") });
+    for (const m of e.media.filter(x => x.state?.state === "playing")) items.push({ k: "media", id: m.id, icon: "mdi:play", title: name(this.hass, m), text: t("Speelt {title}", { title: m.state.attributes.media_title || m.state.attributes.app_name || "" }) });
     items.push(...this.applianceItems(e.appliances));
-    for (const b of e.battery.filter(x => +x.state?.state <= (this.config.home?.lowBattery ?? 20))) items.push({ k: "battery", icon: "mdi:battery-20", title: name(this.hass, b), text: t("Batterij {n}%", { n: b.state.state }) });
+    for (const b of e.battery.filter(x => +x.state?.state <= (this.config.home?.lowBattery ?? 20))) items.push({ k: "battery", id: b.id, icon: "mdi:battery-20", title: name(this.hass, b), text: t("Batterij {n}%", { n: b.state.state }) });
     if (e.lights.length) items.push({ k: "lights", icon: "mdi:lightbulb-outline", title: t("Lampen"), text: r.lightsOn ? t("{n} van {m} aan", { n: r.lightsOn, m: e.lights.length }) : t("Alles uit") });
-    if (r.motion) items.push({ k: "motion", icon: "mdi:motion-sensor", title: t("Beweging"), text: r.motionOn ? t("Nu") : relTime(r.motion.last_changed) });
+    { const skip = new Set(this.pageCfg(r.id).tickerSkip || []), bs = this.config.home?.bannerSensors, mot = e.motion.filter(x => !skip.has(x.id) && x.state);   // sensors left out in the page settings don't count (#202)
+      const last = mot.map(x => x.state).sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed))[0], on = mot.filter(x => !bs || bs.includes(x.id)).some(x => isOn(x.state));
+      if (last) items.push({ k: "motion", icon: "mdi:motion-sensor", title: t("Beweging"), text: on ? t("Nu") : relTime(last.last_changed) }); }
     const editing = this.editing(r.id), cards = editing ? editStrip(this, r.id) : this.applyPage(r.id, this.roomCards(r)).map(c => c.tpl);
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}

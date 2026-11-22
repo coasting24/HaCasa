@@ -5,7 +5,7 @@ import { directive, Directive, PartType } from "lit/directive.js";
 import { classMap } from "lit/directives/class-map.js";
 import { icon, isOn, unavailable, num, relTime, shortDate, sinceText, domain } from "./util.js";
 import { name, deviceName } from "./model.js";
-import { applianceState, applianceEnd, eventWhen, nextEvent } from "./extras2.js";
+import { applianceState, applianceEnd, eventWhen, eventDay, eventTime, nextEvent } from "./extras2.js";
 import { spark } from "./extras3.js";
 import { tw, motionOn } from "./motion.js";
 import { sky, feelsLike } from "./sky.js";
@@ -93,6 +93,8 @@ export function condHidden(p, key, tpl, invert) {
   if (r.visible === undefined) return true;
   const f = condFalse(r.visible); return invert ? !f : f;
 }
+/** a card set to show only on phones or only on bigger screens (#204); phone = the phone layout (max 900px wide) */
+export const deviceHidden = c => !!c?.showOn && (c.showOn === "phone") !== matchMedia("(max-width:900px)").matches;
 /** hidden by a condition {visEntity, visOp, visValue} (a comparison on an entity state) or {tplVisible} (Jinja, rendered as p.templates[tplKey]);
     tplVisibleInvert flips it. Used by cards and status pills */
 export function condHiddenBy(p, c, tplKey) {
@@ -276,6 +278,9 @@ export function mediaView(p, e) {
     playing: cands.some(s => s.state === "playing"), paused: info?.state === "paused", off: mainOff && !cands.some(active), ctl: info && info !== main && active(info) ? info.entity_id : e.id };
 }
 
+/** the source button on a media card (#200): "auto" shows it for players with sources that can't be switched off (Sonos), or always / never */
+export const canPower = s => (s?.attributes?.supported_features & (128 | 256)) > 0;
+export const sourceBtn = (s, cfg) => (s?.attributes?.source_list?.length || 0) > 1 && (cfg.sourceBtn === "on" || (cfg.sourceBtn !== "off" && !canPower(s)));
 export function mediaCard(p, e) {
   const v = mediaView(p, e), s = v.main, on = v.playing, un = unavailable(s) && !v.playing, off = v.off;
   const st = off ? t("Uit") : on ? t("Speelt af") : v.paused ? t("Gepauzeerd") : t("Aan");
@@ -301,6 +306,7 @@ export function mediaCard(p, e) {
       <button @click=${act("media_previous_track")} title=${t("Vorige")}><ha-icon icon="mdi:skip-previous"></ha-icon></button>
       <button class="main" @click=${act(off ? "turn_on" : "media_play_pause", off ? e.id : v.ctl)} title=${t("Afspelen/pauze")}><ha-icon icon=${off ? "mdi:power" : on ? "mdi:pause" : "mdi:play"}></ha-icon></button>
       <button @click=${act("media_next_track")} title=${t("Volgende")}><ha-icon icon="mdi:skip-next"></ha-icon></button>
+      ${!un && sourceBtn(s, cfg) ? html`<button @click=${ev => { ev.stopPropagation(); p.openPopup({ type: "media", e, src: true }); }} title=${t("Bron")}><ha-icon icon="mdi:login-variant"></ha-icon></button>` : nothing}
     </div>
   </div>`;
 }
@@ -695,7 +701,7 @@ function homeAllCards(p, h) {
     <div class="n">${t("Scènes")}</div><div class="s">${h.scenes.slice(0, 4).map(s => html`<button title=${s.attributes.friendly_name} @click=${ev => { ev.stopPropagation(); p.call("scene", "turn_on", { entity_id: s.entity_id }); }}><ha-icon icon=${s.attributes.icon || "mdi:palette-outline"}></ha-icon><small>${s.attributes.friendly_name}</small></button>`)}</div></div>`);
   // agenda: next event (events are fetched by the panel into p.events)
   if (h.calendars.length && p.events) { const ev = nextEvent(p.events), later = p.events.filter(x => x !== ev && x.end > new Date()).slice(0, 2);
-    const when = x => { const today = new Date(); today.setHours(0, 0, 0, 0); const d = x.start < new Date(today.getTime() + 86400000) ? "" : x.start < new Date(today.getTime() + 2 * 86400000) ? t("Morgen") + " " : x.start.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "") + " "; return d + (x.allDay ? t("hele dag") : x.start.toLocaleTimeString(locale(), timeOpts())); };
+    const when = x => { const k = eventDay(x), d = k <= 0 ? "" : k === 1 ? t("Morgen") + " " : x.start.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "") + " "; return d + eventTime(x); };
     add("agenda", t("Agenda"), html`<div class=${classMap({ card: true, hassub: later.length > 0 })} ${pressDir(p, { tap: () => p.openPopup({ type: "agenda" }) })}>
     <div class="i">${ico("mdi:calendar-blank-outline", "calendar")}</div>
     <div class="n">${ev ? ev.summary : t("Niets gepland")}</div><div class="s">${ev ? eventWhen(ev) : t("vandaag en morgen")}</div>

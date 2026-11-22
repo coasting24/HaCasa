@@ -73,7 +73,9 @@ const wrap = (title, big, sub, body, cls = "") => {
 };
 /** a switch whose device also has a power sensor or an operation-state sensor can be shown as an appliance (bezig / klaar) */
 const applianceCapable = (p, id) => { const dev = p.hass.entities?.[id]?.device_id; return !!dev && Object.values(p.hass.entities).some(e => e.device_id === dev && e.entity_id !== id && (p.hass.states[e.entity_id]?.attributes.device_class === "power" || p.hass.states[e.entity_id]?.attributes.unit_of_measurement === "W" || e.translation_key === "operation_state" || /_operation_state$/.test(e.entity_id))); };
-const TICKER_KINDS = { home: { quips: t("Persoonlijkheid"), update: t("HaCasa-updates"), energy: t("Energie"), waste: t("Afval"), agenda: t("Agenda"), notifications: t("Meldingen"), attention: t("Aandacht"), doors: t("Open deuren"), weather: t("Weer"), modes: t("Modi"), appliances: t("Huishoudapparaten") }, room: { quips: t("Persoonlijkheid"), lights: t("Lampen"), doors: t("Open deuren/ramen"), media: t("Media"), battery: t("Batterij laag"), appliances: t("Huishoudapparaten") } };
+const TICKER_KINDS = { home: { quips: t("Persoonlijkheid"), update: t("HaCasa-updates"), energy: t("Energie"), waste: t("Afval"), agenda: t("Agenda"), notifications: t("Meldingen"), attention: t("Aandacht"), doors: t("Open deuren"), weather: t("Weer"), modes: t("Modi"), appliances: t("Huishoudapparaten") }, room: { quips: t("Persoonlijkheid"), lights: t("Lampen"), doors: t("Open deuren/ramen"), motion: t("Beweging"), media: t("Media"), battery: t("Batterij laag"), appliances: t("Huishoudapparaten") } };
+/** the sensors of a room that can show up in its ticker (#202): doors, windows, motion, batteries and players */
+const tickerSensors = r => { const e = r?.ents; if (!e) return []; const seen = new Set(); return [...e.doors, ...e.windows, ...e.motion, ...e.battery, ...e.media].filter(x => x?.id && !seen.has(x.id) && seen.add(x.id)); };
 /** sensible wizard defaults: what the panel already detected */
 function wizardDefaults(p) {
   const h = p.config.home || {};
@@ -147,6 +149,7 @@ function cardForm(p, pop) {
           ${TPL_ASK.filter(([k]) => askList.includes(k)).map(([k, l]) => row(t(l), html`<input type="text" .value=${draft.fields?.[k] || ""} placeholder=${tc?.[k] || ""} @change=${e => upd({ fields: { ...(draft.fields || {}), [k]: e.target.value || undefined } })}>`, once ? t("Jinja, live gerenderd") : t("door de template gevraagd")))}` : nothing}
         ${dom === "binary_sensor" ? row(t("Soort"), seg("kind", [{ v: "door", l: t("Deur"), icon: "mdi:door" }, { v: "window", l: t("Raam"), icon: "mdi:window-closed-variant" }, { v: "motion", l: t("Beweging"), icon: "mdi:motion-sensor" }, { v: "binary", l: t("Algemeen"), icon: "mdi:checkbox-blank-circle-outline" }], pop.kind || "binary"), t("bepaalt icoon en teksten; zichtbaar na opslaan")) : nothing}
         ${builtin || inst ? nothing : row(t("Tonen"), html`<div class="chips">${[["hideName", t("Naam")], ["hideSub", t("Ondertitel")], ["hideState", t("Staat in de hoek")]].map(([k, l]) => html`<button class=${!draft[k] ? "on" : ""} @click=${() => upd({ [k]: draft[k] ? undefined : true })}>${l}</button>`)}${battery ? html`<button class=${draft.showBattery ? "on" : ""} @click=${() => upd({ showBattery: draft.showBattery ? undefined : true })}>${t("Batterij")}</button>` : nothing}</div>`)}
+        ${row(t("Tonen op"), seg("showOn", [{ v: "all", l: t("overal"), icon: "mdi:devices" }, { v: "phone", l: t("telefoon"), icon: "mdi:cellphone" }, { v: "desktop", l: t("tablet en computer"), icon: "mdi:monitor" }], "all"), t("telefoon = de telefoonweergave, tot 900 pixels breed"))}
         ${bottomOpts ? row(t("Onderaan"), seg("bottom", bottomOpts, bottomDef), dom === "climate" ? t("naast de doeltemperatuur; op telefoons alleen dit") : t("wat de kaart onderaan toont")) : nothing}
         ${(dom === "light" || dom === "binary_sensor") && bottom === "today" ? row(t("Weergave"), seg("todayStyle", [{ v: "", l: t("balkjes per uur") }, { v: "text", l: t("tekst") }], "")) : nothing}
         ${(dom === "light" || gkind === "light") && bottom === "colors" && caps.rgb ? row(t("Kleuren"), html`<input type="text" .value=${(draft.colors || []).join(", ")} placeholder="#ffb46e, #f27a5c, #7fb6ff, #9fcf8a" @change=${e => { const l = e.target.value.split(",").map(x => x.trim()).filter(x => /^#[0-9a-f]{6}$/i.test(x)); upd({ colors: l.length ? l : undefined }); }}>`, t("hex-kleuren, gescheiden door komma's")) : nothing}
@@ -154,6 +157,7 @@ function cardForm(p, pop) {
         ${dom === "media_player" ? opt("noArt", t("Albumhoes tonen"), t("als achtergrond tijdens afspelen")) : nothing}
         ${dom === "media_player" ? row(t("Gekoppelde speler"), select(p.hass, "media_player", draft.link, v => upd({ link: v || undefined }), { empty: t("automatisch"), filter: s => s.entity_id !== id }), t("titel en hoes van deze speler, bijv. de Chromecast van dezelfde tv")) : nothing}
         ${dom === "media_player" ? opt("noIdleArt", t("Achtergrond bij stilstand"), t("de animatie uit HaCasa instellingen")) : nothing}
+        ${dom === "media_player" ? row(t("Bronknop"), seg("sourceBtn", [{ v: "auto", l: t("automatisch") }, { v: "on", l: t("aan") }, { v: "off", l: t("uit") }], "auto"), t("kies een bron vanaf de kaart; automatisch = bij spelers zonder aan/uit, zoals Sonos")) : nothing}
         ${dom === "climate" ? opt("noMode", t("Modus-knoppen"), t("uit / verwarmen / auto op de kaart")) : nothing}
         ${dom === "camera" ? row(t("Live beeld"), html`<input type="checkbox" .checked=${!!draft.live} @change=${e => upd({ live: e.target.checked || undefined })}>`, t("stream op de kaart i.p.v. een foto elke 10 s")) : nothing}
         ${dom === "switch" ? row(t("Vermogenssensor"), select(p.hass, "sensor", draft.power, v => upd({ power: v || undefined }), { empty: t("automatisch (zelfde apparaat)"), filter: s => s.attributes.unit_of_measurement === "W" }), t("maakt er een stekkerkaart van (watt, verbruik, timer)")) : nothing}
@@ -194,7 +198,7 @@ function cardForm(p, pop) {
   </div>
   <div class="foot"><div class="modes n2">
     <button class="on" @click=${async () => { const a = acts.filter(x => x && x.label && x.service); await saveMade(); p.saveCardSettings(id, { ...draft, actions: a.length ? a : undefined }); }}>${t("Opslaan")}</button>
-    <button @click=${() => p.saveCardSettings(id, null)}>${t("Herstel")}</button>
+    <button @click=${() => { if (confirm(t("Weet je het zeker?"))) p.saveCardSettings(id, null); }}>${t("Herstel")}</button>
   </div></div>`;
 }
 
@@ -209,9 +213,14 @@ function haCamPlayer(p) {
 /** what the More menu offers: edit this page, the overview pages, the user's own links, Home Assistant and settings (popup and phone drawer) */
 export const moreItems = p => [...(canEdit(p) && !p.page && !p.settings ? [{ label: p.room ? t("Kamer bewerken") : t("Startpagina bewerken"), sub: t("kaarten toevoegen, verbergen en ordenen"), icon: "mdi:pencil-outline", wide: true, action: () => p.startEdit(p.room?.id || "home") }] : []), ...Object.entries(PAGES).map(([k, v]) => ({ key: k, label: t(v.label), sub: t(v.sub), icon: v.icon, path: "__" + k + "__" })), ...(p.config.more || []), { label: t("Tijdreis"), sub: t("de laatste 24 uur als tijdlijn"), icon: "mdi:history", action: () => p.openPopup({ type: "timeline" }) }, { label: t("Home Assistant"), sub: t("Instellingen"), icon: "mdi:cog-outline", path: "/config" }, { label: t("Profiel"), sub: t("gebruiker en thema"), icon: "mdi:account-circle-outline", path: "/profile" }, { key: "settings", label: t("HaCasa instellingen"), sub: t("kamers, kaarten, foto's"), icon: "mdi:tune", path: "__settings__" }];
 
+const ONE_ENTITY = ["switch", "fan", "lock", "vacuum", "humidifier", "cover", "climate", "sensor"];
 export function renderPopup(p, pop) {
   CUR = { p, pop };
   const hass = p.hass, home = p.home, roomName = pop.room?.name || p.room?.name || t("Thuis");   // pop.room: opened from a page outside the room (security page)
+  // these read the entity's state straight away: when it is gone from Home Assistant (device removed, integration reloading) the popup
+  // says so instead of throwing, which closed it with no explanation; the card form (⋯) still opens, to hide or reset the card
+  const gone = ONE_ENTITY.includes(pop.type) && !pop.form && (id => id && !hass.states[id])(pop.type === "climate" ? pop.s?.entity_id : pop.e?.id);
+  if (gone) return wrap(roomName, pop.e ? label(p, pop.e) : pop.s?.attributes?.friendly_name || pop.s?.entity_id, t("Onbereikbaar"), nothing);
   switch (pop.type) {
     case "light": {
       const s = hass.states[pop.e.id] || pop.e.state, on = isOn(s), un = unavailable(s);
@@ -389,7 +398,7 @@ export function renderPopup(p, pop) {
     }
     case "page": {
       const key = pop.key, isHome = key === "home", r = isHome ? null : p.rooms.find(x => x.id === key); if (!isHome && !r) return nothing;
-      const cur = isHome ? { ...p.pageCfg(key), temperature: p.userConfig?.home?.temperature, humidity: p.userConfig?.home?.humidity } : p.pageCfg(key), d = pop.draft || { ...cur, hidden: [...(cur.hidden || [])], order: [...(cur.order || [])], ticker: { ...(cur.ticker || {}) }, lines: (cur.lines || []).map(l => ({ ...l })), pills: cur.pills ? cur.pills.map(x => ({ ...x })) : undefined };
+      const cur = isHome ? { ...p.pageCfg(key), temperature: p.userConfig?.home?.temperature, humidity: p.userConfig?.home?.humidity } : p.pageCfg(key), d = pop.draft || { ...cur, hidden: [...(cur.hidden || [])], order: [...(cur.order || [])], ticker: { ...(cur.ticker || {}) }, tickerSkip: [...(cur.tickerSkip || [])], lines: (cur.lines || []).map(l => ({ ...l })), pills: cur.pills ? cur.pills.map(x => ({ ...x })) : undefined };
       const upd = patch => p.openPopup({ ...pop, draft: { ...d, ...patch } });
       const all = p.orderCards(p.pageCards(key), d.order), hid = new Set(d.hidden);
       const move = (i, dir) => { const keys = all.map(c => c.key), j = i + dir; if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; upd({ order: keys }); };
@@ -411,13 +420,16 @@ export function renderPopup(p, pop) {
           ${!all.length ? html`<li><div>${t("Geen kaarten op deze pagina")}</div></li>` : nothing}</ul>
         <div class="prow" style="margin-top:18px"><span>${t("Meldingenregel")}</span><b>${t("tik om uit/aan te zetten")}</b></div>
         <div class="chips">${Object.entries(kinds).map(([k, l]) => html`<button class=${d.ticker[k] === false ? "" : "on"} @click=${() => upd({ ticker: { ...d.ticker, [k]: d.ticker[k] === false ? undefined : false } })}>${t(l)}</button>`)}</div>
+        <div class="form">${field(t("Wanneer"), html`<div class="seg">${[["", t("altijd")], ["home", t("als er iemand thuis is")], ["away", t("als niemand thuis is")]].map(([v, l]) => html`<button class=${(d.tickerWhen || "") === v ? "on" : ""} @click=${() => upd({ tickerWhen: v || undefined })}>${l}</button>`)}</div>`)}</div>
+        ${!isHome && tickerSensors(r).length ? html`<div class="prow" style="margin-top:12px"><span>${t("Sensoren in de regel")}</span><b>${t("tik om er een weg te laten")}</b></div>
+          <div class="chips">${tickerSensors(r).map(x => html`<button class=${d.tickerSkip.includes(x.id) ? "" : "on"} title=${x.id} @click=${() => upd({ tickerSkip: d.tickerSkip.includes(x.id) ? d.tickerSkip.filter(y => y !== x.id) : [...d.tickerSkip, x.id] })}>${name(hass, x)}</button>`)}</div>` : nothing}
         <div class="prow" style="margin-top:18px"><span>${t("Eigen regels")}</span><b>Jinja</b></div>
         <div class="form lines">${(d.lines || []).map((l, i) => html`<div class="lrow">${iconInput(p, l.icon, v => upd({ lines: d.lines.map((x, j) => j === i ? { ...x, icon: v } : x) }), "mdi:text")}<input type="text" .value=${l.text || ""} placeholder=${t("template, bv. {{ states('sensor.x') }} °C")} @change=${e => upd({ lines: d.lines.map((x, j) => j === i ? { ...x, text: e.target.value } : x) })}><button @click=${() => upd({ lines: d.lines.filter((_, j) => j !== i) })}>×</button></div>`)}
           <button class="addline" @click=${() => upd({ lines: [...(d.lines || []), { icon: "mdi:text", text: "" }] })}>${t("+ eigen regel")}</button></div>
         ${pillEditor(p, pop, key, d, upd)}
         <div class="modes n3" style="margin-top:18px">
           <button class="on" @click=${async () => { if (isHome) { const hm = { ...(p.userConfig?.home || {}), temperature: d.temperature, humidity: d.humidity }; if (hm.temperature !== p.userConfig?.home?.temperature || hm.humidity !== p.userConfig?.home?.humidity) await p.saveUser({ home: hm }); }
-            p.savePage(key, { title: d.title, image: d.image, imageLit: d.imageLit, fx: (d.fx || []).filter(f => f.entity && f.at).length ? d.fx.filter(f => f.entity && f.at) : undefined, temperature: isHome ? undefined : d.temperature, humidity: isHome ? undefined : d.humidity, lines: (d.lines || []).filter(l => l.text).length ? d.lines.filter(l => l.text) : undefined, hidden: d.hidden.length ? d.hidden : undefined, order: d.order.length ? d.order : undefined, ticker: Object.values(d.ticker).some(v => v === false) ? Object.fromEntries(Object.entries(d.ticker).filter(([, v]) => v === false)) : undefined, add: d.add, keep: d.keep, pills: d.pills }); }}>${t("Opslaan")}</button>
+            p.savePage(key, { title: d.title, image: d.image, imageLit: d.imageLit, fx: (d.fx || []).filter(f => f.entity && f.at).length ? d.fx.filter(f => f.entity && f.at) : undefined, temperature: isHome ? undefined : d.temperature, humidity: isHome ? undefined : d.humidity, lines: (d.lines || []).filter(l => l.text).length ? d.lines.filter(l => l.text) : undefined, hidden: d.hidden.length ? d.hidden : undefined, order: d.order.length ? d.order : undefined, ticker: Object.values(d.ticker).some(v => v === false) ? Object.fromEntries(Object.entries(d.ticker).filter(([, v]) => v === false)) : undefined, tickerSkip: d.tickerSkip.length ? d.tickerSkip : undefined, tickerWhen: d.tickerWhen, add: d.add, keep: d.keep, pills: d.pills }); }}>${t("Opslaan")}</button>
           <button @click=${() => p.savePage(key, null)}>${t("Herstel")}</button>
           <button data-close>${t("Annuleren")}</button></div></div>`;
     }
@@ -426,7 +438,7 @@ export function renderPopup(p, pop) {
       const upd = patch => p.openPopup({ ...pop, draft: { ...d, ...patch } });
       const updHome = (k, v) => upd({ home: { ...d.home, [k]: v } }), updEnergy = (k, v) => updHome("energy", { ...(d.home.energy || {}), [k]: v });
       const goStep = s => p.openPopup({ ...pop, draft: d, step: s });
-      const areas = Object.values(hass.areas || {}).sort((a, b) => a.name.localeCompare(b.name, "nl"));
+      const areas = Object.values(hass.areas || {}).sort((a, b) => a.name.localeCompare(b.name, locale()));
       const steps = [
         { title: t("Welkom"), body: html`<div class="sub">${t("In vier stappen staat het panel klaar. Alles is later aan te passen bij HaCasa instellingen.")}</div><div class="form">
             ${field(t("Taal"), html`<select @change=${e => { upd({ language: e.target.value || undefined }); }}><option value="" ?selected=${!d.language}>${t("automatisch (taal van Home Assistant)")}</option>${Object.entries(LANGUAGES).map(([k, l]) => html`<option value=${k} ?selected=${d.language === k}>${l}</option>`)}</select>`)}
