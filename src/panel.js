@@ -1,5 +1,6 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
+import { liveLayer } from "./livephoto.js";
 import { blurredBg, edgeBg } from "./perf.js";
 import { homeQuips, roomQuips } from "./quips.js";
 import { t, locale, setLang, setTimeFormat, pickLang, inText, timeOpts, hourLabel } from "./i18n.js";
@@ -365,12 +366,25 @@ class HacasaNova extends LitElement {
     // no cache-bust for an area picture from HA: a new upload gets a new image id, so its address never shows a stale photo
     // and the (full size) original is not downloaded again every hour
     const ver = u => u.includes("?") || u.startsWith("/api/image/serve/") ? u : u + "?v=" + BUILD;
-    const base = room ? room.images || [room.image] : [this.homeImage];
+    const base = room ? room.images || [room.image] : [...this.moodImages(), this.homeImage];
     const all = base.filter(Boolean).flatMap(u => {
       const m = u.match(/^(.*)\.(jpe?g|png|webp)$/i);
       return m ? [u, ...["jpg", "jpeg", "png", "webp"].filter(x => x !== m[2].toLowerCase()).map(x => `${m[1]}.${x}`)] : [u];
     }).map(ver);
     return all.find(u => this.bgOk(u)) || all[0] || "";
+  }
+  /** home photos that follow the time of day (sun.sun) and the weather: day-clear, day-rain, dusk, night-clear … in the folder
+      from Settings, nearest match first; empty folder setting = off */
+  moodImages() {
+    let dir = (this.config.homeMood || "").trim(); if (!dir) return [];
+    if (!dir.endsWith("/")) dir += "/";
+    const sun = this.hass.states["sun.sun"], el = sun ? Number(sun.attributes.elevation) : NaN;
+    const ph = !sun ? "day" : Number.isFinite(el) ? (el < -6 ? "night" : el < 8 ? (sun.attributes.rising ? "dawn" : "dusk") : "day") : sun.state === "below_horizon" ? "night" : "day";
+    const c = this.home.weather?.state || "";
+    const wx = /snow/.test(c) ? "snow" : /rain|pour|lightning|hail|exceptional/.test(c) ? "rain" : c === "fog" ? "fog" : /cloud|windy/.test(c) ? "cloudy" : "clear";
+    const chain = p => [`${p}-${wx}`, p, ...(wx === "fog" ? [`${p}-cloudy`] : []), `${p}-clear`];
+    const names = [...chain(ph), ...(ph === "dawn" || ph === "dusk" ? chain("day") : [])];
+    return [...new Set(names)].map(n => `${dir}${n}.jpg`);
   }
   /** bound attribute values are set verbatim, so real quotes (no HTML entity) */
   bgStyle(url, seed) { if (this.bgOk(url)) return `--bg:url("${url}")`; let h = 0; for (const ch of seed || "home") h = (h * 31 + ch.charCodeAt(0)) % 360; return `--hue:${h}`; }
@@ -696,7 +710,7 @@ class HacasaNova extends LitElement {
     const phone = matchMedia("(max-width:900px)").matches;
     return html`${wxDefs}
       ${this._prevBg ? html`<div class="bg out" style="--bg:url(&quot;${this._prevBg}&quot;)"></div>` : nothing}
-      ${keyed(bg || "plain", isPage ? html`<div class="bg plain"></div>` : html`<div class=${classMap({ bg: true, grad: !this.bgOk(bg) })} style=${this.bgStyle(bg, room?.slug)}></div>`)}
+      ${keyed(bg || "plain", isPage ? html`<div class="bg plain"></div>` : html`<div class=${classMap({ bg: true, grad: !this.bgOk(bg) })} style=${this.bgStyle(bg, room?.slug)}>${this.bgOk(bg) && (room || !this.moodImages().some(u => bg.startsWith(u.replace(/\.jpg$/, ".")))) ? liveLayer(this, room, bg) : nothing}</div>`)}
       <nav class=${classMap({ nav: true, open: this.drawer, srch: !!this.searchOpen, topnav: this.config.phoneNav === "top" })}>
         <a class="logo" @click=${() => this.go(null)}><span class="mark"><img class="ico logo" src=${icon("hacasa")} alt="HaCasa"></span>${brandTitle(this.config.title || t("Thuis") + ".")}</a>
         ${this.renderLinks(room, isPage)}
