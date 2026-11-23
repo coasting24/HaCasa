@@ -161,10 +161,12 @@ function sceneGlyph(cond, moonPhase = "", W = 270, H = 185) {
   // the sun / moon in the top-right corner, where the disc had it
   const cx = R + 78.5, cy = 22;
   const sun = `<circle class="s-pulse" cx="${cx}" cy="${cy}" r="15.5" fill="url(#hcs-sun)" filter="url(#hcs-glow)"/>`;
-  // the moon in its phase (sensor.moon_phase, as in the landscape scene): the unlit part dark, the craters only on the lit part
-  const mk = MOON_K[moonPhase] ?? 1, mr = 14, mrx = mr * (1 - 2 * mk), mid = `hcs-mc-${moonPhase || "full"}`;
-  const lit = mk >= .985 ? `<circle cx="${cx}" cy="${cy}" r="${mr}"/>` : `<path transform="translate(${cx} ${cy})${/waning|last/.test(moonPhase) ? " scale(-1 1)" : ""}" d="M 0 ${-mr} A ${mr} ${mr} 0 0 1 0 ${mr} A ${Math.abs(mrx).toFixed(2)} ${mr} 0 0 ${mrx > 0 ? 0 : 1} 0 ${-mr} Z"/>`;
-  const moon = `<defs><clipPath id="${mid}">${lit}</clipPath></defs><g filter="url(#hcs-mglow)"><circle cx="${cx}" cy="${cy}" r="${mr}" fill="oklch(0.52 0.03 285)"/><g clip-path="url(#${mid})"><circle cx="${cx}" cy="${cy}" r="${mr}" fill="url(#hcs-moon)"/><g fill="oklch(0.77 0.05 90 / 0.65)"><circle cx="${cx + 2}" cy="${cy - 4.2}" r="2.4"/><circle cx="${cx - 4.2}" cy="${cy + 3.1}" r="1.7"/><circle cx="${cx - 6.7}" cy="${cy - 1.7}" r="1"/><circle cx="${cx + 4.5}" cy="${cy + 1.7}" r="1.1"/></g></g></g><circle cx="${cx}" cy="${cy}" r="13.7" fill="none" stroke="oklch(0.90 0.05 90 / 0.28)" stroke-width=".8"/>`;
+  // the moon in its phase (sensor.moon_phase): the unlit part dark, the craters only on the lit part
+  const mk = MOON_K[moonPhase] ?? 1, mr = 14, mrx = mr * (1 - 2 * mk), full = mk >= .985;
+  // the lit part drawn as its own shape (a clipPath here came out wrong in some browsers)
+  const lit = `<path transform="translate(${cx} ${cy})${/waning|last/.test(moonPhase) ? " scale(-1 1)" : ""}" d="M 0 ${-mr} A ${mr} ${mr} 0 0 1 0 ${mr} A ${Math.abs(mrx).toFixed(2)} ${mr} 0 0 ${mrx > 0 ? 0 : 1} 0 ${-mr} Z" fill="url(#hcs-moon)"/>`;
+  const craters = `<g fill="oklch(0.77 0.05 90 / 0.65)"><circle cx="${cx + 2}" cy="${cy - 4.2}" r="2.4"/><circle cx="${cx - 4.2}" cy="${cy + 3.1}" r="1.7"/><circle cx="${cx - 6.7}" cy="${cy - 1.7}" r="1"/><circle cx="${cx + 4.5}" cy="${cy + 1.7}" r="1.1"/></g>`;
+  const moon = `<g filter="url(#hcs-mglow)">${full ? `<circle cx="${cx}" cy="${cy}" r="${mr}" fill="url(#hcs-moon)"/>${craters}` : `<circle cx="${cx}" cy="${cy}" r="${mr}" fill="oklch(0.52 0.03 285)"/>${lit}`}</g><circle cx="${cx}" cy="${cy}" r="13.7" fill="none" stroke="oklch(0.90 0.05 90 / 0.28)" stroke-width=".8"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><rect width="${W}" height="${H}" fill="url(#hcs-f-${c})"/><rect width="${W}" height="${H}" fill="url(#hcs-g-${c})"/>${a}${body === "sun" ? sun : body === "moon" ? moon : ""}<rect width="${W}" height="${H}" fill="url(#hcs-gl)"/></svg>`;
 }
 
@@ -431,11 +433,8 @@ export const skyStyles = `
   .card.wxsky{grid-template-rows:max-content 1fr max-content max-content max-content;grid-template-areas:"i c" ". ." "n n" "s s" "l l"}
   :where(.card.wxsky)>*:not(.sky,.wbg){position:relative;z-index:1}
   .card.wxsky .wbg{position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none}
-  .card.wxsky .wls{opacity:.5}
-  .card.wxsky .wls::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgba(0,0,0,.28))}
-  .card.wxsky .wls .l-balloons{display:none}
   .card.wxau .n{font-weight:700;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .card.wxau .n em{font-style:normal;font-weight:900;filter:brightness(1.35)}
+  .card.wxau .n em{font-style:normal;font-weight:900}
   .card.wxsky .tnow{grid-area:i;display:flex;align-items:baseline;gap:10px;height:36px;margin-left:-2px;white-space:nowrap;min-width:0}
   .card.wxsky .tnow b{font-size:44px;font-weight:600;letter-spacing:-2px;line-height:.82}
   .card.wxsky .tnow b sup{font-size:18px;letter-spacing:0;vertical-align:top;line-height:1;margin-left:1px;font-weight:500;color:var(--fg-2)}
@@ -450,7 +449,20 @@ export const skyStyles = `
   .card.wxsky .snt>span{overflow:hidden;text-overflow:ellipsis}
   .card.wxsky .snt :is(b,.pp){color:var(--fg-2);font-weight:700}
   .card.wxsky .snt .sh{display:none}
+  /* "simple": a plain card (the background photo already shows the weather); the one-liner and tomorrow carry it */
+  .card.wxsimple{grid-template-rows:max-content 1fr max-content max-content max-content;grid-template-areas:"i c" ". ." "n n" "s s" "t t"}
+  .card.wxsimple .i{display:flex;align-items:center}
+  .card.wxsimple .c .dt{display:inline-block;width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.6;margin:0 8px}
+  .card.wxsimple .n.wxq{font-weight:700;line-height:1.2;white-space:normal}
+  .card.wxsimple .n.wxq em{font-style:normal;font-weight:900}
+  .card.wxsimple .s{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
+  .card.wxsimple .wtm{grid-area:t;display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;font-weight:500;color:var(--fg-2);min-width:0}
+  .card.wxsimple .wtm>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card.wxsimple .wtm b{color:var(--fg);font-weight:700}
+  .card.wxsimple .wtm .pp{color:#a9d3ff;font-weight:700;white-space:nowrap}
+  .card.wxsimple .wtm .pp svg{display:inline-block;width:.85em;height:.85em;vertical-align:-.08em;margin-right:2px}
   /* "tile": the sky tile of the home page's weather block; its moon or sun stands top right, so the high / low and the rain go to the bottom line */
+  .card.wxt .wxs{opacity:.55}   /* paler than the home page's tile, so the card stays one of the row */
   .card.wxt .wxl{gap:0}
   .card.wxt .wxl :is(b,span){color:var(--fg-2)}
   .card.wxt .wxl .mm::before{content:"·";margin:0 7px}
@@ -460,9 +472,6 @@ export const skyStyles = `
   .popup.wxsky .skybg{position:absolute;left:0;right:0;top:0;height:240px;z-index:-1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%);mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%)}
   .popup.wxsky .skybg .sky{filter:blur(1.1px)}
   .popup.wxsky .skybg .wbg{position:absolute;inset:0}
-  .popup.wxsky .skybg:has(.wls){-webkit-mask-image:linear-gradient(to bottom,#000 45%,rgba(0,0,0,.35) 68%,transparent 88%);mask-image:linear-gradient(to bottom,#000 45%,rgba(0,0,0,.35) 68%,transparent 88%)}
-  .popup.wxsky .skybg .wls svg{top:8px;bottom:auto;height:auto;aspect-ratio:160/100}   /* the whole scene, so no cloud is cut at the top edge; the land fades out under the headline */
-  .popup.wxsky .skybg .l-balloons{display:none}   /* they would drift right through the big headline */
   .popup .skybg{pointer-events:none}   /* never in the way of the header buttons, whatever the popup */
   .popup.cardf .skybg{display:none}   /* the card settings of the weather card: a form, no sky over its fields */
   .popup.wxsky .wxhd b{font-size:44px}

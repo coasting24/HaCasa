@@ -6,9 +6,10 @@ import { weatherEntries, localize } from "./entries.ts";
 import { toFamilyFriendly } from "./entries-mild.ts";
 
 let mild = null;
-/** text colour of the highlighted word, per entry colour key (Tailwind 400 / 200 / 300 shades, as in the widget) */
-const COL = { sun: "oklch(82.8% 0.189 84.429)", cloud: "oklch(70.4% 0.04 256.788)", rain: "oklch(70.7% 0.165 254.624)", storm: "oklch(70.2% 0.183 293.541)",
-  snow: "oklch(88.2% 0.059 254.128)", fog: "oklch(86.9% 0.022 252.894)", wind: "oklch(87.1% 0.15 154.449)", night: "oklch(87% 0.065 274.039)", default: "oklch(92.9% 0.013 255.508)" };
+/** text colour of the highlighted word, per entry colour key: the widget's hues (Tailwind), one or two shades stronger,
+    so the word stands out on HaCasa's dark glass instead of going almost white (the night's indigo-200 did) */
+const COL = { sun: "oklch(87.9% 0.169 91.605)", cloud: "oklch(80.9% 0.105 251.813)", rain: "oklch(70.7% 0.165 254.624)", storm: "oklch(70.2% 0.183 293.541)",
+  snow: "oklch(82.8% 0.111 230.318)", fog: "oklch(85.5% 0.138 181.071)", wind: "oklch(84.5% 0.143 164.978)", night: "oklch(78.5% 0.115 274.713)", default: "oklch(82.8% 0.111 230.318)" };
 
 /** the entry for a condition, day or night and a temperature in °C: same pool and same stable pick as the widget (it only
  *  changes when the condition, the day phase or the temperature by about 5° changes) */

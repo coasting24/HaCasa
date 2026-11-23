@@ -14,7 +14,6 @@ import { calendarStyles } from "./calendar.js";
 import { cards2Styles } from "./cards2.js";
 import { popup2Styles } from "./popups2.js";
 import { skyStyles } from "./sky.js";
-import { landscapeStyles } from "./landscape.js";
 import { diaryStyles } from "./diary.js";
 import { travelStyles } from "./timetravel.js";
 import { liveStyles } from "./livephoto.js";
@@ -972,7 +971,6 @@ export const styles = css`
   .card.unavailable .n{margin-bottom:6px}
   @media (max-width:900px){ .card.unavailable{padding:0 16px} }
   ${unsafeCSS(skyStyles)}
-  ${unsafeCSS(landscapeStyles)}
   ${unsafeCSS(diaryStyles)}
   ${unsafeCSS(travelStyles)}
   ${unsafeCSS(liveStyles)}

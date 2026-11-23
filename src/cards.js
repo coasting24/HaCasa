@@ -9,9 +9,8 @@ import { washDataQuiet } from "./integrations/washdata.js";
 import { applianceState, applianceEnd, eventWhen, eventDay, eventTime, nextEvent } from "./extras2.js";
 import { spark } from "./extras3.js";
 import { tw, motionOn } from "./motion.js";
-import { sky, feelsLike, precipUnit, precipText, sceneTile, nightAt, nightCond } from "./sky.js";
+import { sky, wxIcon, feelsLike, precipUnit, precipText, sceneTile, nightAt, nightCond } from "./sky.js";
 import { authenticText } from "./authentic/index.js";
-import { landscape, phaseOf } from "./landscape.js";
 import { diaryCard } from "./diary.js";
 import { graphCard, stepGraph } from "./graph.js";
 import { peopleCard, securityCard, todoCard, todoEntity, evCard, evReady, timersCard, timerList, solarCard, solarReady, gardenCard, gardenReady } from "./cards2.js";
@@ -775,13 +774,14 @@ function tomorrowLine(f, short) {
     : snow ? t("Morgen {what} met {temp} en {chance} kans op sneeuw", { what }) : t("Morgen {what} met {temp} en {chance} kans op regen", { what });
   return s.split(/(\{temp\}|\{chance\})/).map(x => x === "{temp}" ? html`<b>${temp}°</b>` : x === "{chance}" ? html`<span class="pp">${snow ? FLAKE : DROP}${Math.round(pc)}%</span>` : x);
 }
-/** the sky behind the weather card, and the same one at the top of its popup (config.wxAnim: HaCasa's sky, Authentic Weather or the landscape) */
+/** the sky behind the weather card, and the same one at the top of its popup (config.wxAnim: HaCasa's sky, Authentic Weather, the tile or none) */
+/** the weather card's sky; the landscape (removed) falls back to the tile, the nearest look */
+export const wxSky = cfg => cfg.wxAnim === "landscape" ? "tile" : cfg.wxAnim || "";
 export function wxScene(p, w, popup = false) {
   const cfg = p.config || {}, night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night", moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
-  const temp = Math.round(num(w.attributes.temperature) ?? 0), tempC = /F/i.test(w.attributes.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
-  if (cfg.wxAnim === "tile") return sceneTile(nightCond(w.state, nightAt(p.hass)), moon);
-  if (cfg.wxAnim === "landscape") return landscape(w.state, phaseOf(p.hass.states["sun.sun"]), tempC, moon, !motionOn(), popup ? "hclp" : "hcl");   // own ids in the popup: card and popup share one shadow root
-  if (cfg.wxAnim === "authentic") return html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact=${String(!popup)} moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>`;
+  if (wxSky(cfg) === "simple") return popup ? sky(p, w.state, "popup") : nothing;   // the plain card: the background photo already shows the weather
+  if (wxSky(cfg) === "tile") return sceneTile(nightCond(w.state, nightAt(p.hass)), moon);
+  if (wxSky(cfg) === "authentic") return html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact=${String(!popup)} moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>`;
   return popup ? sky(p, w.state, "popup") : sky(p, w.state);
 }
 export function weatherCard(p, w) {
@@ -795,8 +795,17 @@ export function weatherCard(p, w) {
   const moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
   const tempC = /F/i.test(a.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
   const au = cfg.wxText ? authenticText(w.state, night, tempC, cfg.wxText === "mild", cfg.wxTextLang || getLang()) : null;   // the one-liners may keep their English original while the panel speaks another language
+  // "simple": a plain card for when the background photo already shows the weather: the icon, the temperature in the
+  // corner, the one-liner (or the condition) in front and tomorrow below it
+  if (wxSky(cfg) === "simple") return html`<div class="card wxsimple" ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
+    <div class="i">${wxIcon(nightCond(w.state, nightAt(p.hass)), 36)}</div>
+    <div class="c">${temp}°${feels != null && Math.round(feels) !== temp ? html`<i class="dt"></i>${t("voelt als {v}", { v: Math.round(feels) + "°" })}` : nothing}</div>
+    ${au ? html`<div class="n wxq">${au.pre}<em style=${`color:${au.color}`}>${au.word}</em>${au.post}</div><div class="s">${au.sub}</div>`
+      : html`<div class="n wxq">${condText(w.state)}</div><div class="s">${expect}</div>`}
+    ${tomorrow ? html`<div class="wtm">${wxIcon(tomorrow.condition, 22)}<span>${tomorrowLine(tomorrow, true)}</span></div>` : nothing}
+  </div>`;
   // "tile": built like the weather block on the home page: the temperature, the headline, then high / low and the rain as one line
-  const tile = cfg.wxAnim === "tile";
+  const tile = wxSky(cfg) === "tile";
   return html`<div class=${classMap({ card: true, wxsky: true, wxau: !!au, wxt: tile })} ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
     ${wxScene(p, w)}
     <div class="tnow"><b>${tw(String(temp))}<sup>°</sup></b>${feels != null ? html`<span>${t("voelt als {v}", { v: Math.round(feels) + "°" })}</span>` : nothing}</div>
