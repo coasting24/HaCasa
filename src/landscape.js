@@ -85,9 +85,11 @@ const ad = (d, dl) => `animation-duration:${d}s;animation-delay:${dl}s`;
 /** precipitation scattered over the sky: columns × rows, alternate rows nudged sideways */
 const field = (cols, rows) => rows.flatMap((y, ri) => cols.map(x => [x + (ri % 2 ? 9 : 0), y]));
 
-function build(c, phase, tC, moonPhase, still) {
+function build(c, phase, tC, moonPhase, still, card) {
   const night = phase === "night", v = visual(c, night), acc = new Set(v.acc), gr = ground(c, phase, acc.has("snow")).map(g => `color-mix(in oklch, color-mix(in srgb, ${g} 66%, ${v.lo}) 55%, oklch(0.74 0.006 250))`);   // the land takes on the sky's colour (one mood) and is half greyed, so it sits quietly in the glass
-  const [sx, sy, shi, slo] = SUN[phase] || SUN.day, SX = sx * W / 100, SY = sy * HZ / 100;   // sun in viewBox units
+  const [sx0, sy0, shi, slo] = SUN[phase] || SUN.day;
+  // on the card the corner label stands top right, so a high sun or moon sits lower there, in the free space above the headline
+  const [sx, sy] = card && sy0 < 60 ? [80, 60] : [sx0, sy0], SX = sx * W / 100, SY = sy * HZ / 100;   // sun in viewBox units
   let s = `<defs><radialGradient id="hcl-sun" cx="38%" cy="36%" r="70%"><stop offset="0" stop-color="${shi}"/><stop offset="1" stop-color="${slo}"/></radialGradient>
     <radialGradient id="hcl-moon" cx="38%" cy="34%" r="72%"><stop offset="0" stop-color="oklch(0.96 0.05 95)"/><stop offset="1" stop-color="oklch(0.84 0.06 90)"/></radialGradient>
     <radialGradient id="hcl-lamp"><stop offset="0" stop-color="rgba(255,214,140,.75)"/><stop offset="1" stop-color="rgba(255,214,140,0)"/></radialGradient>
@@ -166,7 +168,7 @@ const CACHE = new Map();
 /** the landscape behind the weather card; tC in °C (only steps of 2° change the tint, so it is rebuilt rarely) */
 export function landscape(cond, phase, tC, moonPhase, still, ns = "hcl") {
   const k = `${cond}|${phase}|${Math.round(tC / 2)}|${moonPhase}|${still}|${ns}`;   // ns: prefix of the SVG ids, so two scenes in one shadow root (card + popup) keep their own gradients
-  if (!CACHE.has(k)) { if (CACHE.size > 40) CACHE.clear(); const svg = build(cond, phase, Math.round(tC / 2) * 2, moonPhase, still); CACHE.set(k, unsafeHTML(ns === "hcl" ? svg : svg.replaceAll("hcl-", ns + "-"))); }
+  if (!CACHE.has(k)) { if (CACHE.size > 40) CACHE.clear(); const svg = build(cond, phase, Math.round(tC / 2) * 2, moonPhase, still, ns === "hcl"); CACHE.set(k, unsafeHTML(ns === "hcl" ? svg : svg.replaceAll("hcl-", ns + "-"))); }
   return CACHE.get(k);
 }
 export const landscapeStyles = `

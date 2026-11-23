@@ -884,7 +884,7 @@ class HacasaNova extends LitElement {
     const th = num(tomorrow?.temperature), tl = num(tomorrow?.templow);
     const tile = this.config.wxIcons === "scene";   // "sky tile": everything below sits on one glass tile tinted by the weather
     return html`<div class=${classMap({ wx: true, wxm: !!this.config.home?.wxMobile, wxtile: tile })} @click=${ev => { ev.stopPropagation(); this.openPopup({ type: "weather" }); }}>
-      ${tile ? wxIcon(nightCond(w.state, nightAt(this.hass)), 0, true) : nothing}
+      ${tile ? wxIcon(nightCond(w.state, nightAt(this.hass)), 0, true, this.hass.states["sensor.moon_phase"]?.state || this.hass.states["sensor.moon"]?.state || "") : nothing}
       <div class="big">${tile ? nothing : wxIcon(nightCond(w.state, nightAt(this.hass)), 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
       <div class="cnd">${condText(w.state)}${wxExpect(this) ? html`<i class="dt"></i>${wxExpect(this)}` : nothing}</div>
       ${line ? html`<div class="hl">${line}</div>` : nothing}

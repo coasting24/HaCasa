@@ -85,10 +85,10 @@ let wxStyle = "";
 export const setWxStyle = v => { wxStyle = v === "scene" ? "scene" : ""; };
 /** animated icon for a weather condition, `size` in px. `hero`: the current weather next to the temperature, the one place
  *  big enough for the sky tile (in the small forecast slots it shrinks to a coloured dot, so those keep the drawn icons) */
-export function wxIcon(c, size = 24, hero = false) {
-  const scene = hero && wxStyle === "scene", k = `${scene ? "scene" : ""}|${c}|${size}`;
+export function wxIcon(c, size = 24, hero = false, moonPhase = "") {
+  const scene = hero && wxStyle === "scene", k = `${scene ? "scene|" + moonPhase : ""}|${c}|${size}`;
   if (!ICONS.has(k)) ICONS.set(k, unsafeHTML(scene
-    ? `<span class="wxs">${sceneGlyph(c)}</span>`
+    ? `<span class="wxs">${sceneGlyph(c, moonPhase)}</span>`
     : `<span class="wxi" style="--s:${size}px">${glyph(c)}</span>`));
   return ICONS.get(k);
 }
@@ -97,6 +97,8 @@ export function wxIcon(c, size = 24, hero = false) {
 // A sky tile per condition (the round weather disc of the GlassHome Weather Scene, opened up into a rounded rectangle): a
 // condition-coloured face with a soft glow, the sun or moon in its top-right corner and the weather drawn across it (drifting clouds, rain, snow, hail, fog, blown leaves, lightning, twinkling stars), plus a glass gloss.
 // Everything sits in a W × 100 box; the gradients live once in SCENE_DEFS (part of wxDefs), so every icon only points at them.
+/** how much of the moon is lit, per sensor.moon_phase state */
+const MOON_K = { new_moon: .04, waxing_crescent: .27, first_quarter: .5, waxing_gibbous: .73, full_moon: 1, waning_gibbous: .73, last_quarter: .5, waning_crescent: .27 };
 const NIGHT = ["oklch(0.44 0.16 292)", "oklch(0.26 0.14 299)", "oklch(0.55 0.19 295 / 0.55)"];
 // condition → [face light, face dark, glow, sun | moon | "", accessories]
 const SCENE = {
@@ -132,7 +134,7 @@ const sCloud = (x, y, s, op, fill = "white") => `<g transform="translate(${x} ${
 const LEAVES = [[34, 24, 1.2, "oklch(0.66 0.15 138)", 5.2, 0], [46, 41, 1, "oklch(0.71 0.15 78)", 6.4, 1.1], [38, 57, 1.3, "oklch(0.58 0.13 52)", 5.8, 2.3], [52, 31, .9, "oklch(0.68 0.16 128)", 7, .6], [42, 69, 1.1, "oklch(0.73 0.15 85)", 6, 3]];
 /** the sky as a tile, W × H (top-right anchored, so a taller or wider tile only shows more of the left / bottom) (the disc's art spread out): sun / moon, clouds and lightning in the top-right
  *  corner with their rain, snow, hail or leaves below them (the left stays free for the temperature), stars and fog across the width */
-function sceneGlyph(cond, W = 270, H = 185) {
+function sceneGlyph(cond, moonPhase = "", W = 270, H = 185) {
   const c = sceneOf(cond), [, , , body, accs] = SCENE[c], acc = new Set(accs.split(" ").filter(Boolean));
   const R = W - 100, k = W / 100, X = x => +(x * k).toFixed(1);   // R: right-anchored; X: spread over the width
   const ad = (dur, delay) => `animation-duration:${dur}s;animation-delay:${delay}s`;
@@ -159,8 +161,19 @@ function sceneGlyph(cond, W = 270, H = 185) {
   // the sun / moon in the top-right corner, where the disc had it
   const cx = R + 78.5, cy = 22;
   const sun = `<circle class="s-pulse" cx="${cx}" cy="${cy}" r="15.5" fill="url(#hcs-sun)" filter="url(#hcs-glow)"/>`;
-  const moon = `<g filter="url(#hcs-mglow)"><circle cx="${cx}" cy="${cy}" r="14" fill="url(#hcs-moon)"/></g><g fill="oklch(0.77 0.05 90 / 0.65)"><circle cx="${cx + 2}" cy="${cy - 4.2}" r="2.4"/><circle cx="${cx - 4.2}" cy="${cy + 3.1}" r="1.7"/><circle cx="${cx - 6.7}" cy="${cy - 1.7}" r="1"/><circle cx="${cx + 4.5}" cy="${cy + 1.7}" r="1.1"/></g><circle cx="${cx}" cy="${cy}" r="13.7" fill="none" stroke="oklch(0.90 0.05 90 / 0.28)" stroke-width=".8"/>`;
+  // the moon in its phase (sensor.moon_phase, as in the landscape scene): the unlit part dark, the craters only on the lit part
+  const mk = MOON_K[moonPhase] ?? 1, mr = 14, mrx = mr * (1 - 2 * mk), mid = `hcs-mc-${moonPhase || "full"}`;
+  const lit = mk >= .985 ? `<circle cx="${cx}" cy="${cy}" r="${mr}"/>` : `<path transform="translate(${cx} ${cy})${/waning|last/.test(moonPhase) ? " scale(-1 1)" : ""}" d="M 0 ${-mr} A ${mr} ${mr} 0 0 1 0 ${mr} A ${Math.abs(mrx).toFixed(2)} ${mr} 0 0 ${mrx > 0 ? 0 : 1} 0 ${-mr} Z"/>`;
+  const moon = `<defs><clipPath id="${mid}">${lit}</clipPath></defs><g filter="url(#hcs-mglow)"><circle cx="${cx}" cy="${cy}" r="${mr}" fill="oklch(0.52 0.03 285)"/><g clip-path="url(#${mid})"><circle cx="${cx}" cy="${cy}" r="${mr}" fill="url(#hcs-moon)"/><g fill="oklch(0.77 0.05 90 / 0.65)"><circle cx="${cx + 2}" cy="${cy - 4.2}" r="2.4"/><circle cx="${cx - 4.2}" cy="${cy + 3.1}" r="1.7"/><circle cx="${cx - 6.7}" cy="${cy - 1.7}" r="1"/><circle cx="${cx + 4.5}" cy="${cy + 1.7}" r="1.1"/></g></g></g><circle cx="${cx}" cy="${cy}" r="13.7" fill="none" stroke="oklch(0.90 0.05 90 / 0.28)" stroke-width=".8"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><rect width="${W}" height="${H}" fill="url(#hcs-f-${c})"/><rect width="${W}" height="${H}" fill="url(#hcs-g-${c})"/>${a}${body === "sun" ? sun : body === "moon" ? moon : ""}<rect width="${W}" height="${H}" fill="url(#hcs-gl)"/></svg>`;
+}
+
+/** the same sky tile as the weather block on the home page, as the background of the weather card and its popup (config.wxAnim = "tile") */
+const TILES = new Map();
+export function sceneTile(cond, moonPhase = "") {
+  const k = `${cond}|${moonPhase}`;
+  if (!TILES.has(k)) TILES.set(k, unsafeHTML(`<span class="wxs wbg">${sceneGlyph(cond, moonPhase)}</span>`));
+  return TILES.get(k);
 }
 
 /** render once in the panel root, outside anything that can be hidden */
@@ -412,34 +425,36 @@ export const skyStyles = `
   @keyframes sk-flash3{0%,70%{opacity:0}70.2%{opacity:.9}70.5%{opacity:.2}70.9%{opacity:.8}71.2%{opacity:.2}71.7%{opacity:1}73%{opacity:.35}75%{opacity:0}100%{opacity:0}}
   @keyframes sk-farflash{0%,40%{opacity:0}40.4%{opacity:.35}41%{opacity:.08}41.5%{opacity:.28}43.5%{opacity:0}100%{opacity:0}}
 
-  /* ===== weather card: big temperature with "voelt als", high / low + precipitation in the corner, tomorrow as a sentence ===== */
-  .card.wxsky{grid-template-rows:max-content 1fr max-content max-content 12px max-content;grid-template-areas:"i c" ". ." "n n" "s s" ". ." "l l";text-shadow:0 1px 10px rgba(0,0,0,.18)}
+  /* ===== weather card, built like every other card: the temperature where the icon sits, high / low and precipitation as
+     the corner label, the headline and its line below, tomorrow as the label along the bottom. The sky lies under the glass,
+     toned down, so the card stays one of the row instead of a coloured tile ===== */
+  .card.wxsky{grid-template-rows:max-content 1fr max-content max-content max-content;grid-template-areas:"i c" ". ." "n n" "s s" "l l"}
   :where(.card.wxsky)>*:not(.sky,.wbg){position:relative;z-index:1}
   .card.wxsky .wbg{position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none}
+  .card.wxsky .wls{opacity:.5}
+  .card.wxsky .wls::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgba(0,0,0,.28))}
+  .card.wxsky .wls .l-balloons{display:none}
   .card.wxau .n{font-weight:700;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .card.wxau .n em{font-style:normal;font-weight:900;filter:brightness(1.35)}
-  .card.wxsky:has(.wls) :is(.tnow,.n,.s,.snt){text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 14px rgba(0,0,0,.35)}
-  .card.wxsky:has(.wbg) .c.wxc{text-shadow:0 1px 3px rgba(0,0,0,.45),0 0 12px rgba(0,0,0,.35)}
-  .card.wxsky .tnow{grid-area:i;display:flex;align-items:baseline;gap:10px;margin-left:-2px;white-space:nowrap;min-width:0}
-  .card.wxsky .tnow b{font-size:56px;font-weight:600;letter-spacing:-2.8px;line-height:.8}
-  .card.wxsky .tnow b sup{font-size:22px;letter-spacing:0;vertical-align:top;line-height:1;margin-left:1px;font-weight:500;color:var(--fg-2)}
-  .card.wxsky .tnow span{font-size:13px;font-weight:400;color:var(--fg-2);opacity:.8;letter-spacing:0}
-  .card.wxsky .c.wxc{flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;letter-spacing:.6px;overflow:visible}
-  .card.wxsky .c.wxc span{display:flex;align-items:center;gap:4px;line-height:1}
-  .card.wxsky .c.wxc .hl{color:#fff;font-size:12px;gap:0}
-  .card.wxsky .c.wxc .hl em{font-style:normal;color:var(--fg-3)}
-  .card.wxsky .c.wxc .mm{color:#a9d3ff;text-transform:none;letter-spacing:.4px}
-  .card.wxsky .c.wxc .mm.dry{color:var(--fg-3)}
-  .card.wxsky .c.wxc svg,.card.wxsky .snt svg{width:.85em;height:.85em;flex:none}
+  .card.wxsky .tnow{grid-area:i;display:flex;align-items:baseline;gap:10px;height:36px;margin-left:-2px;white-space:nowrap;min-width:0}
+  .card.wxsky .tnow b{font-size:44px;font-weight:600;letter-spacing:-2px;line-height:.82}
+  .card.wxsky .tnow b sup{font-size:18px;letter-spacing:0;vertical-align:top;line-height:1;margin-left:1px;font-weight:500;color:var(--fg-2)}
+  .card.wxsky .tnow span{font-size:13px;font-weight:500;color:var(--fg-3);letter-spacing:0}
+  .card.wxsky .c.wxc{gap:0;overflow:visible;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+  .card.wxsky .c.wxc span{display:flex;align-items:center;line-height:1}
+  .card.wxsky .c.wxc em{font-style:normal}
+  .card.wxsky .c.wxc .mm::before{content:"·";margin:0 7px}
+  .card.wxsky .c.wxc svg,.card.wxsky .snt svg{display:none}
   .card.wxsky .s{color:var(--fg-2)}
-  .card.wxsky .snt{grid-area:l;padding-top:10px;border-top:1px solid rgba(255,255,255,.18);font-size:13px;font-weight:500;line-height:1.4;color:rgba(255,255,255,.62);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
-  .card.wxsky .snt b{color:#fff;font-weight:700}
-  .card.wxsky .snt .pp{color:#a9d3ff;font-weight:700;white-space:nowrap}
-  .card.wxsky .snt .pp svg{display:inline-block;vertical-align:-.08em;margin-right:2px}
+  .card.wxsky .snt{grid-area:l;height:28px;display:flex;align-items:flex-end;font-size:11px;text-transform:uppercase;letter-spacing:1.8px;font-weight:600;color:var(--fg-3);white-space:nowrap;overflow:hidden}
+  .card.wxsky .snt>span{overflow:hidden;text-overflow:ellipsis}
+  .card.wxsky .snt :is(b,.pp){color:var(--fg-2);font-weight:700}
   .card.wxsky .snt .sh{display:none}
-  /* landscape: the sun and moon stand top right, so the high / low and the rain go under the temperature */
-  .card.wxsky:has(.wls){grid-template-rows:max-content max-content 1fr max-content max-content 12px max-content;grid-template-areas:"i i" "c c" ". ." "n n" "s s" ". ." "l l"}
-  .card.wxsky:has(.wls) .c.wxc{grid-area:c;position:relative;top:auto;right:auto;height:auto;max-width:none;flex-direction:row;align-items:center;justify-content:flex-start;justify-self:start;text-align:left;gap:10px;margin-top:10px}
+  /* "tile": the sky tile of the home page's weather block; its moon or sun stands top right, so the high / low and the rain go to the bottom line */
+  .card.wxt .wxl{gap:0}
+  .card.wxt .wxl :is(b,span){color:var(--fg-2)}
+  .card.wxt .wxl .mm::before{content:"·";margin:0 7px}
+  .card.wxt .wxl svg{display:none}
   /* the weather popup: the header is the same sky, fading into the popup */
   .popup.wxsky{position:relative}
   .popup.wxsky .skybg{position:absolute;left:0;right:0;top:0;height:240px;z-index:-1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%);mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%)}
@@ -454,18 +469,15 @@ export const skyStyles = `
   .popup .wxi{display:block;margin:6px auto}
   .popup .wd .wxi{margin:0 auto}
   @media (max-width:900px){
-    .card.wxsky{grid-template-rows:max-content 1fr max-content 0 6px max-content}
+    .card.wxsky{grid-template-rows:max-content 1fr max-content 0 max-content}
+    .card.wxsky .tnow{height:auto}
     .card.wxsky .tnow b{font-size:30px;letter-spacing:-1.4px}
     .card.wxsky .tnow b sup{font-size:13px}
     .card.wxsky .tnow span,.card.wxsky .s{display:none}
     .card.wxsky .n{font-size:13px}
-    .card.wxsky .c.wxc{gap:3px;font-size:8.5px;letter-spacing:.3px}
-    .card.wxsky .c.wxc .hl{font-size:9px}
-    .card.wxsky .snt{padding-top:6px;font-size:10px;line-height:1.3}
+    .card.wxsky .snt{height:auto;padding-top:6px;font-size:9px;letter-spacing:1.2px}
     .card.wxsky .snt .lg{display:none}
     .card.wxsky .snt .sh{display:inline}
-    .card.wxsky:has(.wls){grid-template-rows:max-content max-content 1fr max-content 0 6px max-content}
-    .card.wxsky:has(.wls) .c.wxc{gap:6px;margin-top:5px}
     .sky{filter:blur(.8px)}
     .sky .sk-o{display:none}
     .card .sky.k-sun::before,.card .sky.k-partly::before,.card .sky.k-night::before{width:124px;height:124px;right:-48px;top:-54px}
