@@ -7,6 +7,7 @@ import { html, nothing } from "lit";
 import { t, locale, timeOpts } from "./i18n.js";
 import { num, unavailable } from "./util.js";
 import { pressDir, wxDays } from "./cards.js";
+import { wxIcon, nightAt, nightCond } from "./sky.js";
 
 const hm = d => d.toLocaleTimeString(locale(), timeOpts());
 const st = (p, id) => (id && p.hass.states[id]) || null;
@@ -64,10 +65,10 @@ function facts(p, w, src) {
 }
 
 export function outsideCard(p, w) {
-  const src = outsideSources(p), warn = warnings(st(p, src.warn)), list = facts(p, w, src).slice(0, warn.length ? 2 : 4);
+  const src = outsideSources(p), warn = warnings(st(p, src.warn)), list = facts(p, w, src).slice(0, 4);
   const top = warn[0], until = warn.map(x => x.end).filter(Boolean).sort((x, y) => y - x)[0];
   return html`<div class="card wxout" ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }), hold: src.warn && warn.length ? () => p.moreInfo(src.warn) : null })}>
-    <div class="i"><ha-icon icon="mdi:tree-outline"></ha-icon></div>
+    <div class="i">${wxIcon(nightCond(w?.state || "", nightAt(p.hass)), 36)}</div>
     <div class="c">${t("Buiten")}</div>
     ${top ? html`<div class="owarn" style=${`--wc:${top.color}`}><ha-icon icon="mdi:alert-outline"></ha-icon><span>${warn.map(x => x.name).join(` ${t("en")} `)}${until ? html`<em> · ${t("tot {t}", { t: untilText(until) })}</em>` : nothing}</span></div>` : nothing}
     <div class="ofacts">${list.map(f => html`<div class=${f.hot ? "hot" : ""}><small>${f.label}</small><b>${f.value}</b></div>`)}</div>
@@ -76,6 +77,10 @@ export function outsideCard(p, w) {
 
 export const outsideStyles = `
   .card.wxout{grid-template-rows:max-content 1fr max-content max-content;grid-template-areas:"i c" ". ." "w w" "f f"}
+  .card.wxout .i{display:flex;align-items:center}   /* the same drawn weather icons as next to the greeting */
+  .card.wxout:has(.owarn){grid-template-rows:max-content 0 max-content max-content}
+  .card.wxout:has(.owarn) .owarn{margin:8px 0 8px}
+  .card.wxout:has(.owarn) .ofacts{row-gap:4px}
   .card.wxout .owarn{grid-area:w;display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 10px;border-radius:10px;font-size:13px;font-weight:600;
     color:color-mix(in srgb,var(--wc) 80%,#fff);background:color-mix(in srgb,var(--wc) 16%,transparent);border:1px solid color-mix(in srgb,var(--wc) 30%,transparent);min-width:0}
   .card.wxout .owarn ha-icon{--mdc-icon-size:18px;flex:none}
