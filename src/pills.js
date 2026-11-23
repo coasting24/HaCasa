@@ -5,10 +5,11 @@ import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { t } from "./i18n.js";
 import { isOn, unavailable } from "./util.js";
-import { ico, uico, anyIco, condHiddenBy } from "./cards.js";
+import { ico, uico, anyIco, condHiddenBy, pressDir } from "./cards.js";
 import { dragRows } from "./drag.js";
 import { condFields } from "./settings.js";
 import { iconInput } from "./iconpicker.js";
+import { options, entityIds, numericIds, serviceNames } from "./lists.js";
 
 export const BUILTIN_PILLS = { lights: { name: "Lampen", icon: "mdi:lightbulb-outline" }, doors: { name: "Deuren & ramen", icon: "mdi:door" }, attention: { name: "Aandacht", icon: "mdi:alert-circle-outline" } };
 const isTpl = s => /\{[{%]/.test(s || "");
@@ -83,10 +84,16 @@ export function renderPills(p, key, h, { list, preview = false } = {}) {
     const cond = condHiddenBy(p, x, tplKey(key, x));
     if (cond && !preview) continue;
     const r = resolve(p, key, x, h, preview); if (!r) continue;
-    out.push({ ...r, cond: cond || r.cond });
+    out.push({ ...r, cond: cond || r.cond, id: x.id });
   }
-  if (!out.length) return preview ? html`<div class="pills"><span class="none">${t("Geen pillen zichtbaar")}</span></div>` : nothing;
-  return html`<div class="pills">${out.map(x => html`<button class=${classMap({ on: !!x.on, cond: !!x.cond, tap: !!x.tap })} @click=${ev => { ev.stopPropagation(); if (!preview) x.tap?.(); }}>${x.icon}<span>${x.text}</span></button>`)}</div>`;
+  const admin = !!p.hass?.user?.is_admin;
+  if (!out.length && (preview || !admin)) return preview ? html`<div class="pills"><span class="none">${t("Geen pillen zichtbaar")}</span></div>` : nothing;
+  if (preview) return html`<div class="pills">${out.map(x => html`<button class=${classMap({ on: !!x.on, cond: !!x.cond, tap: !!x.tap })} @click=${ev => ev.stopPropagation()}>${x.icon}<span>${x.text}</span></button>`)}</div>`;
+  // admins edit a pill right here: hold it, or tap it while the page is in edit mode (popup "pilledit" in popups.js)
+  const editing = admin && p.editing?.(key), edit = x => () => p.openPopup({ type: "pilledit", key, pill: x.id });
+  const add = () => { const id = "p" + Date.now().toString(36); p.openPopup({ type: "pilledit", key, pill: id, draft: { pills: [...pillList(p, key), { id, icon: "mdi:information-outline", text: "" }] } }); };
+  return html`<div class=${classMap({ pills: true, editable: !!editing })}>${out.map(x => html`<button class=${classMap({ on: !!x.on, cond: !!x.cond, tap: !!x.tap || editing })} @click=${ev => ev.stopPropagation()}
+    ${pressDir(p, { tap: editing ? edit(x) : () => x.tap?.(), hold: admin ? edit(x) : null })}>${x.icon}<span>${x.text}</span>${editing ? html`<ha-icon class="pedit" icon="mdi:pencil-outline"></ha-icon>` : nothing}</button>`)}${admin ? html`<button class="padd" title=${t("Pil toevoegen")} @click=${ev => { ev.stopPropagation(); add(); }}><ha-icon icon="mdi:plus"></ha-icon></button>` : nothing}</div>`;
 }
 
 /* ---------- editor (page settings popup) ---------- */
@@ -174,5 +181,5 @@ export function pillEditor(p, pop, key, d, upd) {
       </li>${open === x ? editor(x) : nothing}`)}
       ${!list.length ? html`<li><div>${t("Nog geen pillen op deze pagina")}</div></li>` : nothing}</ul>
     <button class="addbtn" @click=${add}>+ ${t("Pil toevoegen")}</button>
-    <datalist id="hcn-pill-entities">${Object.keys(p.hass.states).map(x => html`<option value=${x}></option>`)}</datalist>`;
+    <datalist id="hcn-pill-entities">${options(entityIds(p.hass))}</datalist>`;
 }
