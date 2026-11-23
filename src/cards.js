@@ -11,6 +11,7 @@ import { spark } from "./extras3.js";
 import { tw, motionOn } from "./motion.js";
 import { sky, wxIcon, feelsLike, precipUnit, precipText, sceneTile, nightAt, nightCond } from "./sky.js";
 import { authenticText } from "./authentic/index.js";
+import { outsideCard } from "./outside.js";
 import { diaryCard } from "./diary.js";
 import { graphCard, stepGraph } from "./graph.js";
 import { peopleCard, securityCard, todoCard, todoEntity, evCard, evReady, timersCard, timerList, solarCard, solarReady, gardenCard, gardenReady } from "./cards2.js";
@@ -779,10 +780,17 @@ function tomorrowLine(f, short) {
 export const wxSky = cfg => cfg.wxAnim === "landscape" ? "tile" : cfg.wxAnim || "";
 export function wxScene(p, w, popup = false) {
   const cfg = p.config || {}, night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night", moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
-  if (wxSky(cfg) === "simple") return popup ? sky(p, w.state, "popup") : nothing;   // the plain card: the background photo already shows the weather
+  if (wxSky(cfg) === "simple" || wxSky(cfg) === "outside") return popup ? sky(p, w.state, "popup") : nothing;   // the plain card: the background photo already shows the weather
   if (wxSky(cfg) === "tile") return sceneTile(nightCond(w.state, nightAt(p.hass)), moon);
   if (wxSky(cfg) === "authentic") return html`<weather-bg class="wbg" condition=${w.state} is-night=${String(night)} transparent="true" colored-bg="true" compact=${String(!popup)} moon-phase=${moon} paused=${String(!motionOn())}></weather-bg>`;
   return popup ? sky(p, w.state, "popup") : sky(p, w.state);
+}
+/** the one-liner for the current weather ({ pre, word, post, sub, color }), or null when the plain text is chosen (config.wxText) */
+export function wxQuip(p, w) {
+  const cfg = p.config || {}; if (!cfg.wxText || !w) return null;
+  const a = w.attributes, temp = Math.round(num(a.temperature) ?? 0), tempC = /F/i.test(a.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
+  const night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night";
+  return authenticText(w.state, night, tempC, cfg.wxText === "mild", cfg.wxTextLang || getLang());   // the one-liners may keep their English original while the panel speaks another language
 }
 export function weatherCard(p, w) {
   const a = w.attributes, { today, tomorrow } = wxDays(p), feels = feelsLike(a), temp = Math.round(num(a.temperature) ?? 0);
@@ -794,9 +802,10 @@ export function weatherCard(p, w) {
   const night = p.home?.sun?.state === "below_horizon" || w.state === "clear-night", cfg = p.config || {};
   const moon = p.hass.states["sensor.moon_phase"]?.state || p.hass.states["sensor.moon"]?.state || "full_moon";
   const tempC = /F/i.test(a.temperature_unit || "") ? (temp - 32) * 5 / 9 : temp;
-  const au = cfg.wxText ? authenticText(w.state, night, tempC, cfg.wxText === "mild", cfg.wxTextLang || getLang()) : null;   // the one-liners may keep their English original while the panel speaks another language
+  const au = wxQuip(p, w);   // the one-liners may keep their English original while the panel speaks another language
   // "simple": a plain card for when the background photo already shows the weather: the icon, the temperature in the
   // corner, the one-liner (or the condition) in front and tomorrow below it
+  if (wxSky(cfg) === "outside") return outsideCard(p, w);
   if (wxSky(cfg) === "simple") return html`<div class="card wxsimple" ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
     <div class="i">${wxIcon(nightCond(w.state, nightAt(p.hass)), 36)}</div>
     <div class="c">${temp}°${feels != null && Math.round(feels) !== temp ? html`<i class="dt"></i>${t("voelt als {v}", { v: Math.round(feels) + "°" })}` : nothing}</div>

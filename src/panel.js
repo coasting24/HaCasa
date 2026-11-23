@@ -19,7 +19,7 @@ import { renderPage, PAGES, PAGE_ALIAS, PAGE_URL, pageKey } from "./pages.js";
 import { nowPlaying } from "./nowplaying.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
 import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
-import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, deviceHidden, anyIco, wxDays } from "./cards.js";
+import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, deviceHidden, anyIco, wxDays, wxQuip, wxSky } from "./cards.js";
 import { wxIcon, wxDefs, setWxStyle, nightAt, nightCond } from "./sky.js";
 import { renderPills, pillTemplates } from "./pills.js";
 import { iconPicker } from "./iconpicker.js";
@@ -882,12 +882,14 @@ class HacasaNova extends LitElement {
     const hi = num(today?.temperature), lo = num(today?.templow);
     const line = [hi != null && lo != null ? `H ${Math.round(hi)}° · L ${Math.round(lo)}°` : "", a.wind_speed != null ? t("Wind {n}", { n: `${Math.round(a.wind_speed)} ${a.wind_speed_unit || t("km/u")}` }) : ""].filter(Boolean).join(" · ");
     const th = num(tomorrow?.temperature), tl = num(tomorrow?.templow);
-    const tile = this.config.wxIcons === "scene";   // "sky tile": everything below sits on one glass tile tinted by the weather
+    const tile = this.config.wxIcons === "scene";
+    const q = wxQuip(this, w);   // the one-liner instead of the condition: the photo already shows what the weather is   // "sky tile": everything below sits on one glass tile tinted by the weather
     return html`<div class=${classMap({ wx: true, wxm: !!this.config.home?.wxMobile, wxtile: tile })} @click=${ev => { ev.stopPropagation(); this.openPopup({ type: "weather" }); }}>
       ${tile ? wxIcon(nightCond(w.state, nightAt(this.hass)), 0, true, this.hass.states["sensor.moon_phase"]?.state || this.hass.states["sensor.moon"]?.state || "") : nothing}
       <div class="big">${tile ? nothing : wxIcon(nightCond(w.state, nightAt(this.hass)), 58)}<div class="t">${tw(String(Math.round(num(a.temperature) ?? 0)))}<sup>°</sup></div></div>
-      <div class="cnd">${condText(w.state)}${wxExpect(this) ? html`<i class="dt"></i>${wxExpect(this)}` : nothing}</div>
-      ${line ? html`<div class="hl">${line}</div>` : nothing}
+      ${q ? html`<div class="cnd q">${q.pre}<em style=${`color:${q.color}`}>${q.word}</em>${q.post}</div><div class="qs">${q.sub}</div>`
+        : html`<div class="cnd">${condText(w.state)}${wxExpect(this) ? html`<i class="dt"></i>${wxExpect(this)}` : nothing}</div>`}
+      ${line && wxSky(this.config) !== "outside" ? html`<div class="hl">${line}</div>` : nothing}
       ${hours.length || tomorrow ? html`<div class="wbar">${hours.map(f => html`<div>${hourLabel(new Date(f.datetime), t("{h}u", { h: new Date(f.datetime).getHours() }))}${wxIcon(nightCond(f.condition, nightAt(this.hass, f.datetime, f.is_daytime)), 24)}<b>${Math.round(num(f.temperature) ?? 0)}°</b></div>`)}
         ${tomorrow ? html`<div class="tm">${t("Morgen")}${wxIcon(tomorrow.condition, 24)}<b>${th != null ? Math.round(th) + "°" : ""}${tl != null ? html`<em> / ${Math.round(tl)}°</em>` : nothing}</b></div>` : nothing}</div>` : nothing}
     </div>`;

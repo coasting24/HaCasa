@@ -1,3 +1,4 @@
+import { outsideStyles } from "./outside.js";
 import { css, unsafeCSS } from "lit";
 import { settingsStyles } from "./settings.js";
 import { iconPickerStyles } from "./iconpicker.js";
@@ -175,6 +176,9 @@ export const styles = css`
   .wx .t{font-size:72px;font-weight:500;letter-spacing:-3px;line-height:1}
   .wx .t sup{font-size:28px;font-weight:600;vertical-align:top;margin-left:2px;line-height:1.6}
   .wx .cnd{font-size:15px;font-weight:600;color:var(--fg-2);margin-top:2px}
+  .wx .cnd.q{font-size:17px;font-weight:700;color:#fff;line-height:1.25;max-width:360px;margin-left:auto}
+  .wx .cnd.q em{font-style:normal;font-weight:900}
+  .wx .qs{font-size:13px;font-weight:500;color:var(--fg-2);margin-top:3px;max-width:360px;margin-left:auto;line-height:1.35}
   .wx .hl{font-size:13px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--fg-3);margin-top:4px}
   /* one glass bar: the next hours, then tomorrow behind a divider */
   .wx .big .wxi{margin-top:6px}
@@ -873,6 +877,7 @@ export const styles = css`
     .wx .t sup{font-size:16px;line-height:1.4}
     .wx .cnd{margin:0}
     .wx .hl{margin-top:2px}
+    .wx .cnd.q,.wx .qs{margin-left:0;max-width:none}
     .strip{position:static;pointer-events:auto;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:6px;padding:4px var(--pad) calc(90px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));scroll-snap-type:none;scrollbar-width:none}
     .strip::after{display:none}
     .etools{position:static;padding:8px var(--pad) 6px;flex:none}
@@ -953,6 +958,7 @@ export const styles = css`
   }
   @media (min-width:600px) and (max-width:900px){ .strip{grid-template-columns:1fr 1fr 1fr} .popup .pvc .card{width:min(100%, calc((100vw - 52px) / 3))} }
   ${unsafeCSS(pageStyles)}
+  ${unsafeCSS(outsideStyles)}
   ${unsafeCSS(extraStyles)}
   ${unsafeCSS(extra2Styles)}
   ${unsafeCSS(settingsStyles)}
