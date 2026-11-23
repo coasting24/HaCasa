@@ -52,7 +52,7 @@ export function liveLayer(p, room, baseUrl) {
   const lit = room ? room.lightsOn > 0 : (p.home?.lightsOn?.length || 0) > 0;
   const fx = (pc.fx || []).map(f => ({ ...f, at: spot(f.at), kind: FX_KINDS[f.kind] ? f.kind : fxDefault(f.entity) })).filter(f => f.at && f.entity);
   if (!pc.imageLit && !fx.length) return nothing;
-  const size = fx.length ? photoSize(p, baseUrl) : null, k = size ? size.w / 2000 : 1;
+  const size = fx.length ? photoSize(p, baseUrl) : null, k = size ? size.w / 2000 * 1.7 : 1;   // the drawings are made for a 2000 px wide photo; 1.7 keeps them readable behind the cards
   const grad = (id, c, a) => svg`<radialGradient id=${id}><stop offset="0" stop-color=${c} stop-opacity=${a}></stop><stop offset="1" stop-color=${c} stop-opacity="0"></stop></radialGradient>`;
   return html`${pc.imageLit ? html`<div class="bglit" style=${`--bgl:url("${pc.imageLit}");opacity:${lit ? 1 : 0}`}></div>` : nothing}
     ${size ? html`<svg class="bgfx" viewBox=${`0 0 ${size.w} ${size.h}`} preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
@@ -87,7 +87,7 @@ export function liveEditor(p, pop, d, upd, baseUrl) {
 
 export const liveStyles = `
   .bg .bglit{position:absolute;inset:0;background:var(--bgl) center center / cover no-repeat;transition:opacity 1.4s cubic-bezier(.4,0,.2,1)}
-  .bg .bgfx{position:absolute;inset:0;width:100%;height:100%}
+  .bg .bgfx{position:absolute;inset:0;width:100%;height:100%;z-index:1}   /* above the dark wash (.bg::after), the lit photo stays under it */
   .bgfx .lfx{transition:opacity .8s}
   .bgfx .lwave{animation:lwave 2.8s ease-out infinite;opacity:0}
   @keyframes lwave{0%{opacity:0;transform:translateX(0)}25%{opacity:.6}100%{opacity:0;transform:translateX(-18px)}}
