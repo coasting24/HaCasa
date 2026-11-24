@@ -27,22 +27,32 @@ export function outsideSources(p) {
   return { warn, pollen, uv, aqi };
 }
 
-/** the active warnings of a DWD-style sensor: [{ name, level, color, end }] */
-function warnings(s) {
+/** the active warnings of a DWD-style sensor: [{ name, level, color, start, end, headline, text }], the worst first */
+export function warnings(s) {
   if (!ok(s)) return [];
-  const a = s.attributes, n = num(a.warning_count) ?? 0, out = [];
+  const a = s.attributes, n = num(a.warning_count) ?? 0, out = [], when = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? d : null; };
   for (let i = 1; i <= n; i++) {
     const name = a[`warning_${i}_name`]; if (!name) continue;
-    const end = a[`warning_${i}_end`] ? new Date(a[`warning_${i}_end`]) : null;
-    out.push({ name: name.charAt(0) + name.slice(1).toLowerCase(), level: num(a[`warning_${i}_level`]) ?? 1, color: a[`warning_${i}_color`] || "#ffeb3b", end: end && !isNaN(end) ? end : null });
+    out.push({ name: name.charAt(0) + name.slice(1).toLowerCase(), level: num(a[`warning_${i}_level`]) ?? 1, color: a[`warning_${i}_color`] || "#ffeb3b",
+      start: when(a[`warning_${i}_start`]), end: when(a[`warning_${i}_end`]), headline: a[`warning_${i}_headline`] || "", text: a[`warning_${i}_description`] || "" });
   }
   return out.sort((x, y) => y.level - x.level);
 }
-const untilText = d => { const tom = new Date(); tom.setDate(tom.getDate() + 1); return d.toDateString() === new Date().toDateString() ? hm(d) : d.toDateString() === tom.toDateString() ? `${t("morgen")} ${hm(d)}` : d.toLocaleDateString(locale(), { weekday: "short" }) + " " + hm(d); };
+/** the pollen kinds flying today or tomorrow: [{ name, today, tomorrow }], the strongest first */
+export function pollenToday(p, src) {
+  return src.pollen.map(id => st(p, id)).filter(ok).map(s => ({ name: s.attributes.friendly_name || s.entity_id, today: num(s.state) ?? 0, tomorrow: num(s.attributes.state_tomorrow) ?? 0 }))
+    .filter(x => x.today > 0 || x.tomorrow > 0).sort((x, y) => y.today - x.today || y.tomorrow - x.tomorrow);
+}
+/** UV and air quality as numbers (null when unknown); UV falls back to the weather's own index */
+export function uvAqi(p, src, w) {
+  const u = st(p, src.uv), q = st(p, src.aqi);
+  return { uv: ok(u) ? num(u.state) : num(w?.attributes?.uv_index), aqi: ok(q) ? num(q.state) : null };
+}
+export const untilText = d => { const tom = new Date(); tom.setDate(tom.getDate() + 1); return d.toDateString() === new Date().toDateString() ? hm(d) : d.toDateString() === tom.toDateString() ? `${t("morgen")} ${hm(d)}` : d.toLocaleDateString(locale(), { weekday: "short" }) + " " + hm(d); };
 
-const POLLEN_WORD = v => v >= 2.5 ? t("hoog") : v >= 1.5 ? t("matig") : t("laag");
-const UV_WORD = v => v >= 11 ? t("extreem") : v >= 8 ? t("zeer hoog") : v >= 6 ? t("hoog") : v >= 3 ? t("matig") : t("laag");
-const AQI_WORD = v => v > 150 ? t("ongezond") : v > 100 ? t("bedenkelijk") : v > 50 ? t("matig") : t("goed");
+export const POLLEN_WORD = v => v >= 2.5 ? t("hoog") : v >= 1.5 ? t("matig") : t("laag");
+export const UV_WORD = v => v >= 11 ? t("extreem") : v >= 8 ? t("zeer hoog") : v >= 6 ? t("hoog") : v >= 3 ? t("matig") : t("laag");
+export const AQI_WORD = v => v > 150 ? t("ongezond") : v > 100 ? t("bedenkelijk") : v > 50 ? t("matig") : t("goed");
 
 /** the facts, most pressing first: { k, icon, label, value, hot } */
 function facts(p, w, src) {
@@ -75,7 +85,27 @@ export function outsideCard(p, w) {
   </div>`;
 }
 
+/** the warnings at the top of the weather popup: one strip each, with its time and the DWD text; a tap opens the sensor */
+export function warnBlock(p, src) {
+  const list = warnings(st(p, src.warn)); if (!list.length) return nothing;
+  const span = x => [x.start && x.start > Date.now() ? t("vanaf {t}", { t: untilText(x.start) }) : "", x.end ? t("tot {t}", { t: untilText(x.end) }) : ""].filter(Boolean).join(" ");
+  return html`<div class="pwarns">${list.map(x => html`<button class="pwarn" style=${`--wc:${x.color}`} @click=${() => p.moreInfo(src.warn)}>
+    <ha-icon icon="mdi:alert-outline"></ha-icon><div><b>${x.name}</b>${span(x) ? html`<em> · ${span(x)}</em>` : nothing}${x.text ? html`<small>${x.text}</small>` : nothing}</div></button>`)}</div>`;
+}
+
 export const outsideStyles = `
+  .popup .pwarns{display:flex;flex-direction:column;gap:6px;margin:4px 0 14px}
+  .popup .pwarn{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;padding:10px 12px;border-radius:var(--r-sm);font:inherit;cursor:pointer;
+    color:color-mix(in srgb,var(--wc) 80%,#fff);background:color-mix(in srgb,var(--wc) 14%,transparent);border:1px solid color-mix(in srgb,var(--wc) 30%,transparent)}
+  .popup .pwarn ha-icon{--mdc-icon-size:20px;flex:none;margin-top:1px}
+  .popup .pwarn b{font-size:15px;font-weight:700}
+  .popup .pwarn em{font-style:normal;font-size:13px;font-weight:500;opacity:.9}
+  .popup .pwarn small{display:block;margin-top:3px;font-size:13px;font-weight:500;line-height:1.35;color:var(--fg-2)}
+  .popup .pollen{display:grid;grid-template-columns:1fr auto auto;gap:6px 16px;font-size:14px;margin-top:8px}
+  .popup .pollen span{color:var(--fg-2)}
+  .popup .pollen b,.popup .pollen em{font-weight:600;font-style:normal;text-align:right}
+  .popup .pollen em{color:var(--fg-3)}
+  .popup .pollen .hot{color:#ffd27a}
   .card.wxout{grid-template-rows:max-content 1fr max-content max-content;grid-template-areas:"i c" ". ." "w w" "f f"}
   .card.wxout .i{display:flex;align-items:center}   /* the same drawn weather icons as next to the greeting */
   .card.wxout:has(.owarn){grid-template-rows:max-content 0 max-content max-content}
