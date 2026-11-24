@@ -42,7 +42,7 @@ const untilText = d => { const tom = new Date(); tom.setDate(tom.getDate() + 1);
 
 const POLLEN_WORD = v => v >= 2.5 ? t("hoog") : v >= 1.5 ? t("matig") : t("laag");
 const UV_WORD = v => v >= 11 ? t("extreem") : v >= 8 ? t("zeer hoog") : v >= 6 ? t("hoog") : v >= 3 ? t("matig") : t("laag");
-const AQI_WORD = v => v > 150 ? t("ongezond") : v > 100 ? t("ongezond voor gevoeligen") : v > 50 ? t("matig") : t("goed");
+const AQI_WORD = v => v > 150 ? t("ongezond") : v > 100 ? t("bedenkelijk") : v > 50 ? t("matig") : t("goed");
 
 /** the facts, most pressing first: { k, icon, label, value, hot } */
 function facts(p, w, src) {
@@ -59,7 +59,7 @@ function facts(p, w, src) {
   const ws = num(a.wind_speed), wg = num(a.wind_gust_speed), wu = a.wind_speed_unit || t("km/u");
   if (ws != null) out.push({ k: "wind", icon: "mdi:weather-windy", label: t("Wind"), value: `${Math.round(ws)}${wg != null && wg > ws + 4 ? ` · ${t("vlagen {n}", { n: Math.round(wg) })}` : ""} ${wu}` });
   const sun = hass.states["sun.sun"], rise = sun && new Date(sun.attributes.next_rising), set = sun && new Date(sun.attributes.next_setting);
-  if (sun && !isNaN(rise) && !isNaN(set)) out.push({ k: "sun", icon: "mdi:weather-sunset", label: t("Zon op / onder"), value: `${hm(rise)} · ${hm(set)}` });
+  if (sun && !isNaN(rise) && !isNaN(set)) out.push({ k: "sun", icon: "mdi:weather-sunset", label: t("Zon ↑ ↓"), value: `${hm(rise)} · ${hm(set)}` });
   if (aqi != null && aqi <= 50) out.push({ k: "aqi", icon: "mdi:weather-dust", label: t("Luchtkwaliteit"), value: `${AQI_WORD(aqi)} · ${Math.round(aqi)}` });
   return out;
 }
