@@ -259,6 +259,7 @@ export function switchCard(p, e) {
 const APPS = [
   [/netflix/i, "Netflix", "#e50914", "mdi:netflix"], [/tvunplugged|^youtube ?tv$/i, "YouTube TV", "#ff0000", "mdi:youtube-tv"],   // before YouTube: com.google.android.youtube.tvunplugged
   [/youtube/i, "YouTube", "#ff0000", "mdi:youtube"], [/plex/i, "Plex", "#e5a00d", "mdi:plex"],
+  [/music.?assistant/i, "Music Assistant", "#18bcf2", "mdi:music-circle-outline"],   // its players report the source "Music Assistant Queue"
   [/spotify/i, "Spotify", "#1db954", "mdi:spotify"], [/disney/i, "Disney+", "#113ccf", "mdi:movie-star-outline"], [/amazonvideo|prime ?video|com\.amazon\.avod/i, "Prime Video", "#00a8e1", "mdi:filmstrip"],
   [/videoland/i, "Videoland", "#e3001b", "mdi:filmstrip"], [/npo/i, "NPO Start", "#ff6d00", "mdi:television-classic"], [/hbo|com\.wbd\.stream|^max$/i, "Max", "#002be7", "mdi:filmstrip"],
   [/skyshowtime/i, "SkyShowtime", "#5d2ec6", "mdi:filmstrip"], [/kodi/i, "Kodi", "#17b2e7", "mdi:kodi"], [/twitch/i, "Twitch", "#9146ff", "mdi:twitch"],
