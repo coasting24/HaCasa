@@ -18,7 +18,7 @@ import { renderSettings, loadUserConfig, saveUserConfig, mergeConfig, diffConfig
 import { renderPage, PAGES, PAGE_ALIAS, PAGE_URL, pageKey } from "./pages.js";
 import { nowPlaying } from "./nowplaying.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
-import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
+import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd, tickerCalendars } from "./extras2.js";
 import { isHidden, pressDir, label, cardCfg, APPLIANCE_ACTIVE, applianceIcon, condHiddenBy, deviceHidden, anyIco, wxDays, wxQuip, wxSky } from "./cards.js";
 import { wxIcon, wxDefs, setWxStyle, nightAt, nightCond } from "./sky.js";
 import { renderPills, pillTemplates } from "./pills.js";
@@ -912,7 +912,8 @@ class HacasaNova extends LitElement {
     const items = [...homeQuips(this, h)];   // Persoonlijkheid: remarks first (quips.js)
     if (h.energy.today) items.push({ k: "energy", icon: "mdi:flash-outline", title: t("Energie"), text: t("Vandaag {n} kWh verbruikt", { n: (+h.energy.today.state).toFixed(1) }) + (h.energy.returned ? ", " + t("{n} kWh teruggeleverd", { n: (+h.energy.returned.state).toFixed(1) }) : "") });
     if (h.waste[0]) items.push({ k: "waste", icon: "mdi:trash-can-outline", title: h.waste[0].label, text: cap(wasteSentence(h.waste[0]).replace(h.waste[0].label, "").replace(/^[:\s]+/, "")) });
-    const ev = nextEvent(this.events || []); if (ev) items.push({ k: "agenda", icon: "mdi:calendar-blank-outline", title: ev.summary, text: eventWhenShort(ev) });
+    const tcal = new Set(tickerCalendars(this.hass, this.config.home, this.home.calendars));
+    const ev = nextEvent((this.events || []).filter(x => tcal.has(x.cal))); if (ev) items.push({ k: "agenda", icon: "mdi:calendar-blank-outline", title: ev.summary, text: eventWhenShort(ev) });
     for (const n of this.notifications.slice(0, 2)) items.push({ k: "notifications", icon: "mdi:bell-outline", title: n.title || t("Melding"), text: (n.message || "").replace(/\s+/g, " ").slice(0, 70) });
     if (h.attention.length) items.push({ k: "attention", icon: "mdi:alert-circle-outline", title: `${h.attention.length} ${h.attention.length === 1 ? t("melding") : t("meldingen")}`, text: `${h.attention[0].name} ${h.attention[0].text}` });
     if (h.doorsOpen.length) items.push({ k: "doors", icon: "mdi:door-open", title: h.doorsOpen.map(e => name(this.hass, e)).join(", "), text: h.doorsOpen.length === 1 ? t("Staat open") : t("Staan open") });

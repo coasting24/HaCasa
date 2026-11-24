@@ -39,6 +39,14 @@ export const eventWhen = ev => {
   return `${day} · ${eventTime(ev)}`;
 };
 export const nextEvent = events => events.find(ev => ev.end > new Date()) || null;
+/** a waste pickup calendar (Waste Collection Schedule, Afvalwijzer …, or named like one): its pickups have their own line
+    in the notifications ("Afval"), so the agenda line leaves them out unless chosen */
+const WASTE_PLATFORMS = new Set(["waste_collection_schedule", "afvalwijzer", "afvalbeheer", "mijnafvalwijzer", "abfallplus", "abfall_io", "rova", "recycleapp"]);
+export const isWasteCalendar = (hass, id) => WASTE_PLATFORMS.has(hass.entities?.[id]?.platform)
+  || /abfall|afval|waste|m(ü|ue)ll|garbage|recycl|refuse|poubelle|odpady|bin ?(collection|day)/i.test(`${id} ${hass.states[id]?.attributes?.friendly_name || ""}`);
+/** the calendars whose events may show in the notification line: the chosen ones (home.tickerCalendars), else every
+    agenda calendar but the waste ones */
+export const tickerCalendars = (hass, home, cals) => home?.tickerCalendars ? cals.filter(c => home.tickerCalendars.includes(c)) : cals.filter(c => !isWasteCalendar(hass, c));
 
 /* ---------- appliances ----------
    a plug with a power sensor: "running" while power > threshold; "done" after a run until the plug is used again or `doneMinutes` pass.

@@ -1,6 +1,7 @@
 // Settings page: edits a draft of the config and stores it per user with Home Assistant's
 // frontend user-data storage (frontend/set_user_data). config.json stays the base; user data overrides it.
 // The page is split into tabs (left) so each topic stays small.
+import { tickerCalendars } from "./extras2.js";
 import { t, locale, LANGUAGES } from "./i18n.js";
 import { html, nothing } from "lit";
 import { domain, slug, roomSlug, SUFFIX, VERSION } from "./util.js";
@@ -243,6 +244,9 @@ export function renderSettings(p) {
 
     agenda: html`
       ${sec(t("Agenda"), t("kaart + regel in de meldingen"), html`${calendars.length ? chips(calendars, d.home?.calendars || null, calendars.map(c => c.entity_id), l => setHome("calendars", l)) : html`<small>${t("Geen agenda's gevonden")}</small>`}`)}
+      ${calendars.length ? (() => { const sel = calendars.filter(c => !d.home?.calendars || d.home.calendars.includes(c.entity_id)), ids = sel.map(c => c.entity_id);
+        return sec(t("Agenda in de meldingen"), t("welke agenda's de regel onder de begroeting mag tonen; standaard alle behalve afvalkalenders, want ophaaldagen hebben hun eigen regel"),
+          html`${chips(sel, tickerCalendars(hass, d.home, ids), ids, l => setHome("tickerCalendars", l))}${d.home?.tickerCalendars ? html`<button class="add" @click=${() => setHome("tickerCalendars", undefined)}>${t("standaard")}</button>` : nothing}`); })() : nothing}
       ${sec(t("Afval"), t("Afvalbeheer-sensoren"), html`
         ${waste.map((w, i) => html`<div class="row">${select(hass, "sensor", w.entity, v => setWaste(i, "entity", v), { empty: t("kies sensor") })}${text(w.label, v => setWaste(i, "label", v), "label")}<button @click=${() => setHome("waste", waste.filter((_, j) => j !== i))}>×</button></div>`)}
         <button class="add" @click=${() => setHome("waste", [...waste, { entity: null, label: "" }])}>${t("+ afvalstroom")}</button>`)}`,
