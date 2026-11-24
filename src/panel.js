@@ -226,7 +226,7 @@ class HacasaNova extends LitElement {
     if (this._viewSwitch) { this._viewSwitch = false; requestAnimationFrame(() => { this.style.transform = "translateZ(0)"; requestAnimationFrame(() => { this.style.transform = ""; }); }); }
     afterRender(this);
     this.fitRooms(); this.stripEnd();
-    { const g = this.renderRoot.querySelector(".roomgrid"), h = g ? g.offsetHeight + 14 : 0; if (this._rgh !== h) { this._rgh = h; this.style.setProperty("--rgh", h + "px"); } }   // pages start below the room buttons   // first: stripEnd sizes the edge pictures of two rows, which _perf then paints
+    { const g = this.renderRoot.querySelector(".roomgrid"), h = g ? Math.max(0, g.offsetHeight - 46) : 0; if (this._rgh !== h) { this._rgh = h; this.style.setProperty("--rgh", h + "px"); } }   // pages start below the room buttons   // first: stripEnd sizes the edge pictures of two rows, which _perf then paints
     for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; this._fadeStrip(st); }   // cards may have changed: measure again
     this._perf();
   }
@@ -748,7 +748,6 @@ class HacasaNova extends LitElement {
           <button class="menu" title=${t("Menu")} @click=${() => { this.drawer = !this.drawer; this.navFloor = this.drawer ? this.floorOf(room) : null; }}><img src=${icon(this.drawer ? "close" : "menu")} alt="menu"></button>
           ${this.searchOpen && !this.settings ? searchBar(this) : nothing}` : nothing}
       </nav>
-      ${this.roomGrid(room, isPage)}
       ${phone && (this.config.phoneNav !== "top" || this.edit) ? this.renderBottomNav(room, isPage) : nothing}
       ${nowPlaying(this, phone)}
       ${keyed(this.settings ? "settings" : this.page || (room ? room.id : "home"), this.settings ? renderSettings(this) : this.page ? renderPage(this, this.page) : room ? this.renderRoom(room) : this.renderHome(h))}
@@ -818,12 +817,12 @@ class HacasaNova extends LitElement {
   /** navigation: one pill per room, or (config.navMode "floors") one per floor with a room dropdown — hover on desktop, tap on touch/mobile */
   /** fixed room buttons (config.navStyle "buttons"): on a tablet or computer, rooms mode (not floors) */
   roomButtons() { return this.config.navStyle === "buttons" && this.config.navMode !== "floors" && !matchMedia("(max-width:900px)").matches; }
-  /** every room as its own button under the top bar, wrapping into more rows, so all rooms are always in sight (a wall
-      panel: nobody has to know the bar scrolls); size S / M / L, the area's icon optional */
+  /** every room as its own button in the top row, between the title and the people, wrapping into more rows below it,
+      so all rooms are always in sight (a wall panel: nobody has to know the bar scrolls); size S / M / L, icons optional */
   roomGrid(room, isPage) {
     if (!this.roomButtons()) return nothing;
     const size = this.config.navBtnSize || "m", icons = this.config.navBtnIcons !== false;
-    return html`<div class=${classMap({ roomgrid: true, [size]: true })}>${this.rooms.map(r => html`<button class=${classMap({ pill: true, active: room?.id === r.id })} @click=${() => this.go(r)}>
+    return html`<div class=${classMap({ links: true, roomgrid: true, [size]: true })}>${this.rooms.map(r => html`<button class=${classMap({ pill: true, active: room?.id === r.id })} @click=${() => this.go(r)}>
       ${icons && r.icon ? html`<ha-icon icon=${r.icon}></ha-icon>` : nothing}<span>${r.name}</span></button>`)}
       <button class=${classMap({ pill: true, more: true, active: !!isPage })} @click=${() => { this.drawer = false; this.openPopup({ type: "more" }); }}>${icons ? html`<ha-icon icon="mdi:dots-horizontal"></ha-icon>` : nothing}<span>${t("Meer")}</span></button>
       <button class=${classMap({ pill: true, srchb: true, active: !!this.searchOpen })} title=${t("Zoeken")} aria-label=${t("Zoeken")} @click=${() => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; }}><img class="ico" src=${icon("search")} alt=""></button></div>`;
@@ -843,7 +842,7 @@ class HacasaNova extends LitElement {
         ${moreItems(this).map(m => html`<a class=${classMap({ mi: true, active: m.key === "settings" ? !!this.settings : !!m.key && this.page === m.key })} @click=${() => { this.drawer = false; m.action ? m.action() : this.goPath(m.path); }}>${anyIco(m.icon)}<span>${m.label}</span></a>`)}
         <div class="dver">HaCasa Nova ${VERSION}</div>`;
     }
-    if (groups.length < 2 && this.roomButtons()) return html`<div class="links rbtn"></div>`;   // rooms, More and search are buttons of their own (roomGrid); the empty bar keeps the top row's spacing
+    if (groups.length < 2 && this.roomButtons()) return this.roomGrid(room, isPage);   // rooms, More and search as buttons of their own, in the top row
     if (groups.length < 2) return html`<div class="links pill">${homeLink}
       <div class="rl">${this.rooms.map(r => html`<a class=${classMap({ active: room?.id === r.id })} @click=${() => this.go(r)}>${r.name}</a>`)}
         <div class=${classMap({ fl: true, ovf: true, open: this.navFloor === "ovf" })} @mouseleave=${() => { if (this.navFloor === "ovf") this.navFloor = null; }}>

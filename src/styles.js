@@ -74,10 +74,11 @@ export const styles = css`
   /* one row of rooms; the ones that don't fit go under the "+N" pill (#195), "Meer" and search stay put (fitRooms() measures the wrap) */
   .links .rl{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:0 1 auto}
   .links .ovf b{font-weight:700}
-  .links.rbtn{visibility:hidden;width:0;padding:0}
-  /* fixed room buttons under the top bar (config.navStyle "buttons") */
-  .roomgrid{position:absolute;top:calc(40px + 46px + 14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));left:var(--pad);right:var(--pad);z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;animation:upT .5s var(--ease) both}
-  .roomgrid button{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;font:inherit;font-size:15px;font-weight:600;color:var(--fg-2);cursor:pointer;transition:background .2s,color .2s}
+  /* fixed room buttons in the top row (config.navStyle "buttons"): in the flow between the title and the people, wrapping
+     downwards; the rest of the row stays on the first line */
+  .nav:has(.roomgrid){align-items:flex-start;height:auto;min-height:46px}
+  .links.roomgrid{position:static;transform:none;height:auto;flex:1 1 0;min-width:0;max-width:none;width:auto;padding:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;min-height:46px}
+  .roomgrid button{flex:none;display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;font:inherit;font-size:15px;font-weight:600;color:var(--fg-2);cursor:pointer;transition:background .2s,color .2s}
   .roomgrid button:hover{color:#fff;background:rgba(255,255,255,.16)}
   .roomgrid button.active{background:rgba(255,255,255,.28);color:#fff;font-weight:700}
   .roomgrid button ha-icon{--mdc-icon-size:20px;width:20px;height:20px;opacity:.85}
