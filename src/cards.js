@@ -12,6 +12,7 @@ import { tw, motionOn } from "./motion.js";
 import { sky, wxIcon, feelsLike, precipUnit, precipText, sceneTile, nightAt, nightCond } from "./sky.js";
 import { authenticText } from "./authentic/index.js";
 import { outsideCard } from "./outside.js";
+import "./visualizer.js";
 import { diaryCard } from "./diary.js";
 import { graphCard, stepGraph } from "./graph.js";
 import { peopleCard, securityCard, todoCard, todoEntity, evCard, evReady, timersCard, timerList, solarCard, solarReady, gardenCard, gardenReady } from "./cards2.js";
@@ -301,13 +302,15 @@ export function mediaCard(p, e) {
   const a = v.info?.attributes || {}, dur = num(a.media_duration), pos = num(a.media_position);
   const prog = on && dur ? Math.min(100, Math.max(0, ((pos ?? 0) + (a.media_position_updated_at ? (Date.now() - new Date(a.media_position_updated_at)) / 1000 : 0)) / dur * 100)) : v.paused && dur && pos != null ? pos / dur * 100 : null;
   const kind = a.media_content_type === "music" || a.media_artist ? "music" : "tv";
+  // a Music Assistant player that plays: real equalizer bars in place of the icon (visualizer.js; admins, with motion on)
+  const eqId = on && a.app_id === "music_assistant" && a.active_queue && p.hass.user?.is_admin && motionOn() && !p.config.perfMode ? a.active_queue : null;
   // playing: the app alone (the pause button already says it plays), so the corner never runs into "…"
   const corner = un ? t("Onbereikbaar") : v.app && !off && v.title ? (on ? v.app.name : `${st} · ${v.app.name}`) : st;
   return html`<div class=${classMap({ card: true, media: true, actions: true, on, unavailable: un, art: !!art, appart: !!brand, ...infoCls(cfg) })} style=${art ? `--art:url("${art}")` : brand?.color ? `--app:${brand.color}` : ""}
       ${pressDir(p, pressFor(p, e.id, null, () => p.openPopup({ type: "media", e })))}>
     ${un ? ua() : nothing}
     ${art ? html`<div class="i cov" style=${`background-image:url("${art}")`}></div>`
-      : html`<div class="i">${brand ? html`<ha-icon icon=${brand.icon}></ha-icon>` : icoFor(p, e.id, kind === "music" ? "mdi:music-note-outline" : "mdi:television-play", kind === "music" ? "music" : "tv")}</div>`}
+      : html`<div class="i">${brand ? html`<ha-icon icon=${brand.icon}></ha-icon>` : icoFor(p, e.id, kind === "music" ? "mdi:music-note-outline" : "mdi:television-play", kind === "music" ? "music" : "tv")}${eqId ? html`<hcn-eq .hass=${p.hass} .player=${eqId}></hcn-eq>` : nothing}</div>`}
     <div class="c">${corner}</div>
     <div class="n">${v.title && !off ? v.title : label(p, e)}</div>
     <div class="s">${v.title && !off ? [v.artist, label(p, e)].filter(Boolean).join(" · ") : un ? t("Onbereikbaar") : v.app && !off ? v.app.name : st}</div>
