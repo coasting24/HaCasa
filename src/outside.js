@@ -79,7 +79,7 @@ export function outsideCard(p, w) {
   const top = warn[0], until = warn.map(x => x.end).filter(Boolean).sort((x, y) => y - x)[0];
   return html`<div class="card wxout" ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }), hold: src.warn && warn.length ? () => p.moreInfo(src.warn) : null })}>
     <div class="i">${wxIcon(nightCond(w?.state || "", nightAt(p.hass)), 36)}</div>
-    <div class="c">${t("Buiten")}</div>
+    <div class="c">${t("Weerinfo")}</div>
     ${top ? html`<div class="owarn" style=${`--wc:${top.color}`}><ha-icon icon="mdi:alert-outline"></ha-icon><span>${warn.map(x => x.name).join(` ${t("en")} `)}${until ? html`<em> · ${t("tot {t}", { t: untilText(until) })}</em>` : nothing}</span></div>` : nothing}
     <div class="ofacts">${list.map(f => html`<div class=${f.hot ? "hot" : ""}><small>${f.label}</small><b>${f.value}</b></div>`)}</div>
   </div>`;

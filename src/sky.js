@@ -170,14 +170,6 @@ function sceneGlyph(cond, moonPhase = "", W = 270, H = 185) {
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><rect width="${W}" height="${H}" fill="url(#hcs-f-${c})"/><rect width="${W}" height="${H}" fill="url(#hcs-g-${c})"/>${a}${body === "sun" ? sun : body === "moon" ? moon : ""}<rect width="${W}" height="${H}" fill="url(#hcs-gl)"/></svg>`;
 }
 
-/** the same sky tile as the weather block on the home page, as the background of the weather card and its popup (config.wxAnim = "tile") */
-const TILES = new Map();
-export function sceneTile(cond, moonPhase = "") {
-  const k = `${cond}|${moonPhase}`;
-  if (!TILES.has(k)) TILES.set(k, unsafeHTML(`<span class="wxs wbg">${sceneGlyph(cond, moonPhase)}</span>`));
-  return TILES.get(k);
-}
-
 /** render once in the panel root, outside anything that can be hidden */
 export const wxDefs = unsafeHTML(`<svg class="wxdefs" width="0" height="0" aria-hidden="true">${DEFS}<defs>${SCENE_DEFS}</defs></svg>`);
 
@@ -449,24 +441,6 @@ export const skyStyles = `
   .card.wxsky .snt>span{overflow:hidden;text-overflow:ellipsis}
   .card.wxsky .snt :is(b,.pp){color:var(--fg-2);font-weight:700}
   .card.wxsky .snt .sh{display:none}
-  /* "simple": a plain card (the background photo already shows the weather); the one-liner and tomorrow carry it */
-  .card.wxsimple{grid-template-rows:max-content 1fr max-content max-content max-content;grid-template-areas:"i c" ". ." "n n" "s s" "t t"}
-  .card.wxsimple .i{display:flex;align-items:center}
-  .card.wxsimple .c .dt{display:inline-block;width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.6;margin:0 8px}
-  .card.wxsimple .n.wxq{font-weight:700;line-height:1.2;white-space:normal}
-  .card.wxsimple .n.wxq em{font-style:normal;font-weight:900}
-  .card.wxsimple .s{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
-  .card.wxsimple .wtm{grid-area:t;display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;font-weight:500;color:var(--fg-2);min-width:0}
-  .card.wxsimple .wtm>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .card.wxsimple .wtm b{color:var(--fg);font-weight:700}
-  .card.wxsimple .wtm .pp{color:#a9d3ff;font-weight:700;white-space:nowrap}
-  .card.wxsimple .wtm .pp svg{display:inline-block;width:.85em;height:.85em;vertical-align:-.08em;margin-right:2px}
-  /* "tile": the sky tile of the home page's weather block; its moon or sun stands top right, so the high / low and the rain go to the bottom line */
-  .card.wxt .wxs{opacity:.55}   /* paler than the home page's tile, so the card stays one of the row */
-  .card.wxt .wxl{gap:0}
-  .card.wxt .wxl :is(b,span){color:var(--fg-2)}
-  .card.wxt .wxl .mm::before{content:"·";margin:0 7px}
-  .card.wxt .wxl svg{display:none}
   /* the weather popup: the header is the same sky, fading into the popup */
   .popup.wxsky{position:relative}
   .popup.wxsky .skybg{position:absolute;left:0;right:0;top:0;height:240px;z-index:-1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%);mask-image:linear-gradient(to bottom,#000 40%,rgba(0,0,0,.45) 70%,transparent 100%)}

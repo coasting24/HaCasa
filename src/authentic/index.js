@@ -1,7 +1,6 @@
-// "Authentic Weather" for the weather card (config.wxAnim / config.wxText): the animated <weather-bg> sky and the blunt
+// "Authentic Weather" for the weather card (config.wxText): the blunt
 // one-liners of the GlassHome Authentic Weather widget (the files next to this one, taken over unchanged), with an optional
 // family-friendly set. Only this bridge is HaCasa's own.
-import "./weather-bg.ts";
 import { weatherEntries, localize } from "./entries.ts";
 import { toFamilyFriendly } from "./entries-mild.ts";
 
