@@ -74,14 +74,18 @@ export const styles = css`
   /* one row of rooms; the ones that don't fit go under the "+N" pill (#195), "Meer" and search stay put (fitRooms() measures the wrap) */
   .links .rl{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:0 1 auto}
   .links .ovf b{font-weight:700}
-  .links.rbtn{padding:4px}
-  .links.rbtn .sep{display:none}
+  .links.rbtn{visibility:hidden;width:0;padding:0}
   /* fixed room buttons under the top bar (config.navStyle "buttons") */
   .roomgrid{position:absolute;top:calc(40px + 46px + 14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));left:var(--pad);right:var(--pad);z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;animation:upT .5s var(--ease) both}
   .roomgrid button{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;font:inherit;font-size:15px;font-weight:600;color:var(--fg-2);cursor:pointer;transition:background .2s,color .2s}
   .roomgrid button:hover{color:#fff;background:rgba(255,255,255,.16)}
   .roomgrid button.active{background:rgba(255,255,255,.28);color:#fff;font-weight:700}
   .roomgrid button ha-icon{--mdc-icon-size:20px;width:20px;height:20px;opacity:.85}
+  .roomgrid button.srchb{padding:0;width:44px;justify-content:center}
+  .roomgrid button.srchb img.ico{width:16px;height:16px}
+  .roomgrid.s button.srchb{width:36px}
+  .roomgrid.l button.srchb{width:56px}
+  .roomgrid.l button.srchb img.ico{width:20px;height:20px}
   .roomgrid.s{gap:6px}
   .roomgrid.s button{height:36px;padding:0 14px;font-size:13px}
   .roomgrid.s button ha-icon{--mdc-icon-size:16px;width:16px;height:16px}
@@ -398,6 +402,8 @@ export const styles = css`
   .card .ctl.cvctl button{flex:1;height:44px;background:rgba(255,255,255,.1);border:1px solid var(--line)}
   .card .ctl.cvctl button:active{background:rgba(255,255,255,.22)}
   .card .ctl.cvctl ha-icon{--mdc-icon-size:24px}
+  .card.cvb.vs .ctl.cvctl{right:calc(var(--cp) + 26px)}   /* both: the buttons stop short of the slider */
+  .card.cvb.vs .vslider{bottom:var(--cp)}
   .card.vs .c{right:calc(var(--cp) + 26px)}
   .vslider{position:absolute;top:var(--cp);bottom:var(--cp);right:var(--cp);width:12px;border-radius:999px;background:rgba(255,255,255,.14);cursor:ns-resize;touch-action:none;overflow:hidden}
   .vslider::before{content:"";position:absolute;inset:0 -14px}
