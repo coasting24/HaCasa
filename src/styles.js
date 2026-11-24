@@ -74,6 +74,20 @@ export const styles = css`
   /* one row of rooms; the ones that don't fit go under the "+N" pill (#195), "Meer" and search stay put (fitRooms() measures the wrap) */
   .links .rl{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:0 1 auto}
   .links .ovf b{font-weight:700}
+  .links.rbtn{padding:4px}
+  .links.rbtn .sep{display:none}
+  /* fixed room buttons under the top bar (config.navStyle "buttons") */
+  .roomgrid{position:absolute;top:calc(40px + 46px + 14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));left:var(--pad);right:var(--pad);z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;animation:upT .5s var(--ease) both}
+  .roomgrid button{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;font:inherit;font-size:15px;font-weight:600;color:var(--fg-2);cursor:pointer;transition:background .2s,color .2s}
+  .roomgrid button:hover{color:#fff;background:rgba(255,255,255,.16)}
+  .roomgrid button.active{background:rgba(255,255,255,.28);color:#fff;font-weight:700}
+  .roomgrid button ha-icon{--mdc-icon-size:20px;width:20px;height:20px;opacity:.85}
+  .roomgrid.s{gap:6px}
+  .roomgrid.s button{height:36px;padding:0 14px;font-size:13px}
+  .roomgrid.s button ha-icon{--mdc-icon-size:16px;width:16px;height:16px}
+  .roomgrid.l{gap:10px}
+  .roomgrid.l button{height:56px;padding:0 24px;font-size:17px;gap:10px}
+  .roomgrid.l button ha-icon{--mdc-icon-size:24px;width:24px;height:24px}
   @media (min-width:901px){ .links .rl>a.ovh,.links .ovf.ovh,.links .ovf .dd>a.ovh{display:none} }
   .links a.more{flex:none;padding:0 8px}
   .links a.more + a.search{width:28px}   /* More and search sit together after the divider */
@@ -378,6 +392,12 @@ export const styles = css`
   .card.tinted .slider{background:rgba(255,255,255,.9)}
   /* vertical brightness / speed / position bar: full card height, fills from the bottom, value in the corner */
   .card.vs{padding-right:calc(var(--cp) + 26px)}
+  /* cover: up / stop / down as a row along the bottom, like the media card's buttons */
+  .card.cvb{grid-template-areas:"i c" ". ." "n n" "s s";grid-template-rows:max-content 1fr max-content max-content;padding-bottom:calc(var(--cp) + 52px)}
+  .card .ctl.cvctl{left:var(--cp);right:var(--cp);width:auto;display:flex;gap:6px;grid-auto-rows:auto}
+  .card .ctl.cvctl button{flex:1;height:44px;background:rgba(255,255,255,.1);border:1px solid var(--line)}
+  .card .ctl.cvctl button:active{background:rgba(255,255,255,.22)}
+  .card .ctl.cvctl ha-icon{--mdc-icon-size:24px}
   .card.vs .c{right:calc(var(--cp) + 26px)}
   .vslider{position:absolute;top:var(--cp);bottom:var(--cp);right:var(--cp);width:12px;border-radius:999px;background:rgba(255,255,255,.14);cursor:ns-resize;touch-action:none;overflow:hidden}
   .vslider::before{content:"";position:absolute;inset:0 -14px}

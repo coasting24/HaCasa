@@ -152,7 +152,7 @@ export function buildRooms(hass, config) {
     ents.media = linkMedia(hass, ents.media, config, new Set(config.pages?.[a.area_id]?.add || []), players);
     const s = roomSlug(a.name, a.area_id), pg = config.pages?.[a.area_id] || {};
     return {
-      id: a.area_id, name: pg.title || a.name, slug: s, floor: a.floor_id || null,
+      id: a.area_id, name: pg.title || a.name, slug: s, floor: a.floor_id || null, icon: pg.icon || a.icon || null,
       image: pg.image || fullPic(a.picture) || (config.roomImage || "").replace("{slug}", s),
       // photo file named after the area name, or else after the area id (stays put when the area is renamed)
       images: pg.image || a.picture || !config.roomImage ? null : [...new Set([s, slug(a.area_id)])].map(x => config.roomImage.replace("{slug}", x)),

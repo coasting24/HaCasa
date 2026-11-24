@@ -311,7 +311,7 @@ const FROM_URL = Object.fromEntries(Object.entries(PAGE_URL).map(([k, v]) => [v,
 export const pageKey = name => { const k = FROM_URL[name] || PAGE_ALIAS[name] || name; return PAGES[k] || k === "instellingen" ? k : null; };
 
 export const pageStyles = `
-  .page{position:absolute;inset:calc(142px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 0 0 0;overflow:auto;padding:16px var(--pad) 60px;scrollbar-width:thin;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16px);mask-image:linear-gradient(to bottom,transparent 0,#000 16px)}
+  .page{position:absolute;inset:calc(142px + var(--rgh, 0px) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 0 0 0;overflow:auto;padding:16px var(--pad) 60px;scrollbar-width:thin;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16px);mask-image:linear-gradient(to bottom,transparent 0,#000 16px)}
   .phead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:6px}
   .phead h1{font-size:48px;font-weight:600;letter-spacing:-2.4px;line-height:1;margin-top:8px}
   .peb{font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--fg-2);display:flex;align-items:center}

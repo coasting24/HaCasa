@@ -328,21 +328,25 @@ export function mediaCard(p, e) {
 }
 
 export function coverCard(p, e) {
-  const s = e.state, un = unavailable(s), pos = num(s?.attributes?.current_position);
+  const s = e.state, un = unavailable(s), pos = num(s?.attributes?.current_position), cfg = cardCfg(p, e.id);
   const on = s?.state === "open" || s?.state === "opening";
   const st = { open: t("Open"), closed: t("Dicht"), opening: t("Gaat open"), closing: t("Gaat dicht") }[s?.state] || s?.state;
   const act = (svc) => ev => { ev.stopPropagation(); p.call("cover", svc, { entity_id: e.id }); };
-  const hasPos = pos != null && (s.attributes.supported_features & 4);
-  return html`<div class=${classMap({ card: true, actions: !hasPos, vs: !!hasPos, on, unavailable: un, ...infoCls(cardCfg(p, e.id)) })}
+  const feat = s?.attributes?.supported_features || 0, hasPos = pos != null && (feat & 4);
+  // up / stop / down along the bottom by default (stop matters for shutters that don't report their position reliably);
+  // per card the position slider instead (cfg.coverCtl "slider", only for covers that report a position)
+  const slider = hasPos && cfg.coverCtl === "slider", canStop = !!(feat & 8);
+  return html`<div class=${classMap({ card: true, cover: true, cvb: !slider, vs: slider, on, unavailable: un, ...infoCls(cfg) })}
       ${pressDir(p, pressFor(p, e.id, null, () => p.openPopup({ type: "cover", e })))}>
     ${un ? ua() : nothing}
     <div class="i">${icoFor(p, e.id, "mdi:window-shutter", "window")}</div>
     <div class="c">${un ? t("Onbereikbaar") : hasPos ? `${pos}%` : st}</div>
     <div class="n">${label(p, e)}</div>
     <div class="s">${un ? t("Onbereikbaar") : hasPos ? html`${st}${dot()}${sinceText(s?.last_changed)}` : Cap(sinceText(s?.last_changed))}</div>
-    ${hasPos ? html`<div class="vslider" style="--v:${pos}%" @pointerdown=${ev => vsliderDrag(ev, v => p.call("cover", "set_cover_position", { entity_id: e.id, position: v }))}><i></i></div>` : html`<div class="ctl">
-      <button @click=${act("open_cover")} title=${t("Open")}><img src=${icon("increase")} alt=""></button>
-      <button class="down" @click=${act("close_cover")} title=${t("Dicht")}><img src=${icon("increase")} alt=""></button>
+    ${slider ? html`<div class="vslider" style="--v:${pos}%" @pointerdown=${ev => vsliderDrag(ev, v => p.call("cover", "set_cover_position", { entity_id: e.id, position: v }))}><i></i></div>` : html`<div class="ctl cvctl">
+      <button @click=${act("open_cover")} title=${t("Omhoog")} aria-label=${t("Omhoog")}><ha-icon icon="mdi:chevron-up"></ha-icon></button>
+      ${canStop ? html`<button @click=${act("stop_cover")} title=${t("Stoppen")} aria-label=${t("Stoppen")}><ha-icon icon="mdi:stop"></ha-icon></button>` : nothing}
+      <button @click=${act("close_cover")} title=${t("Omlaag")} aria-label=${t("Omlaag")}><ha-icon icon="mdi:chevron-down"></ha-icon></button>
     </div>`}
   </div>`;
 }

@@ -225,7 +225,8 @@ class HacasaNova extends LitElement {
   updated() {
     if (this._viewSwitch) { this._viewSwitch = false; requestAnimationFrame(() => { this.style.transform = "translateZ(0)"; requestAnimationFrame(() => { this.style.transform = ""; }); }); }
     afterRender(this);
-    this.fitRooms(); this.stripEnd();   // first: stripEnd sizes the edge pictures of two rows, which _perf then paints
+    this.fitRooms(); this.stripEnd();
+    { const g = this.renderRoot.querySelector(".roomgrid"), h = g ? g.offsetHeight + 14 : 0; if (this._rgh !== h) { this._rgh = h; this.style.setProperty("--rgh", h + "px"); } }   // pages start below the room buttons   // first: stripEnd sizes the edge pictures of two rows, which _perf then paints
     for (const st of this.renderRoot.querySelectorAll(".strip")) { st.__geo = null; this._fadeStrip(st); }   // cards may have changed: measure again
     this._perf();
   }
@@ -747,6 +748,7 @@ class HacasaNova extends LitElement {
           <button class="menu" title=${t("Menu")} @click=${() => { this.drawer = !this.drawer; this.navFloor = this.drawer ? this.floorOf(room) : null; }}><img src=${icon(this.drawer ? "close" : "menu")} alt="menu"></button>
           ${this.searchOpen && !this.settings ? searchBar(this) : nothing}` : nothing}
       </nav>
+      ${this.roomGrid(room)}
       ${phone && (this.config.phoneNav !== "top" || this.edit) ? this.renderBottomNav(room, isPage) : nothing}
       ${nowPlaying(this, phone)}
       ${keyed(this.settings ? "settings" : this.page || (room ? room.id : "home"), this.settings ? renderSettings(this) : this.page ? renderPage(this, this.page) : room ? this.renderRoom(room) : this.renderHome(h))}
@@ -814,6 +816,16 @@ class HacasaNova extends LitElement {
     ovf.querySelectorAll(".dd>a").forEach((a, i) => a.classList.toggle("ovh", !links[i].classList.contains("ovh")));
   }
   /** navigation: one pill per room, or (config.navMode "floors") one per floor with a room dropdown — hover on desktop, tap on touch/mobile */
+  /** fixed room buttons (config.navStyle "buttons"): on a tablet or computer, rooms mode (not floors) */
+  roomButtons() { return this.config.navStyle === "buttons" && this.config.navMode !== "floors" && !matchMedia("(max-width:900px)").matches; }
+  /** every room as its own button under the top bar, wrapping into more rows, so all rooms are always in sight (a wall
+      panel: nobody has to know the bar scrolls); size S / M / L, the area's icon optional */
+  roomGrid(room) {
+    if (!this.roomButtons()) return nothing;
+    const size = this.config.navBtnSize || "m", icons = this.config.navBtnIcons !== false;
+    return html`<div class=${classMap({ roomgrid: true, [size]: true })}>${this.rooms.map(r => html`<button class=${classMap({ pill: true, active: room?.id === r.id })} @click=${() => this.go(r)}>
+      ${icons && r.icon ? html`<ha-icon icon=${r.icon}></ha-icon>` : nothing}<span>${r.name}</span></button>`)}</div>`;
+  }
   renderLinks(room, isPage) {
     if (this.searchOpen && !this.drawer && !matchMedia("(max-width:900px)").matches) return html`<div class="links pill srch">${searchBar(this)}</div>`;
     let more = html`<span class="sep"></span><a class=${classMap({ more: true, active: !!isPage })} @click=${() => { this.drawer = false; this.openPopup({ type: "more" }); }}>${t("Meer")}</a><a class=${classMap({ search: true, active: !!this.searchOpen })} title=${t("Zoeken")} @click=${() => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; }}><img class="ico" src=${icon("search")} alt=""></a>`;
@@ -829,6 +841,7 @@ class HacasaNova extends LitElement {
         ${moreItems(this).map(m => html`<a class=${classMap({ mi: true, active: m.key === "settings" ? !!this.settings : !!m.key && this.page === m.key })} @click=${() => { this.drawer = false; m.action ? m.action() : this.goPath(m.path); }}>${anyIco(m.icon)}<span>${m.label}</span></a>`)}
         <div class="dver">HaCasa Nova ${VERSION}</div>`;
     }
+    if (groups.length < 2 && this.roomButtons()) return html`<div class="links pill rbtn">${homeLink}${more}</div>`;   // the rooms have their own row of buttons (roomGrid)
     if (groups.length < 2) return html`<div class="links pill">${homeLink}
       <div class="rl">${this.rooms.map(r => html`<a class=${classMap({ active: room?.id === r.id })} @click=${() => this.go(r)}>${r.name}</a>`)}
         <div class=${classMap({ fl: true, ovf: true, open: this.navFloor === "ovf" })} @mouseleave=${() => { if (this.navFloor === "ovf") this.navFloor = null; }}>
@@ -924,7 +937,7 @@ class HacasaNova extends LitElement {
     const list = this.roomAllCards(r);
     if (all) return list;
     const e = r.ents, pc = this.pageCfg(r.id), added = new Set([...(pc.add || []), ...(pc.keep || [])]), ok = x => !isDown(x);
-    const def = new Set([...e.lights.filter(ok), ...e.switches.filter(ok), ...e.motion.filter(ok)].map(x => x.id));
+    const def = new Set([...e.lights.filter(ok), ...e.switches.filter(ok), ...e.covers.filter(ok), ...e.motion.filter(ok)].map(x => x.id));   // covers too: shutters are as everyday as lights
     for (const st of e.strips) if (st.switches.some(ok)) def.add(st.id);
     for (const a of e.appliances) if (a.power && (!a.op || a.wd) && !isDown(a.power)) def.add(a.id);   // a WashData device shows like the plug it watches
     return list.filter(x => def.has(x.key) || added.has(x.key) || (x.alias || []).some(k => added.has(k)) || x.key.startsWith("group:") || x.key.startsWith("graph:") || x.key.startsWith("tpl") || (x.key.includes(".") && e.all.some(y => y.id === x.key && y.added)));
