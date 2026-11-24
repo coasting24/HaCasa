@@ -218,7 +218,7 @@ const MW = 240, MH = 150, STYLES = {
   tunnel: { zoom: 1.045, bassZoom: 0.05, rot: 0.004, drift: 0, fade: 0.9, wave: "ring" },
   vortex: { zoom: 1.012, bassZoom: 0.02, rot: 0.022, drift: 0, fade: 0.93, wave: "rays" },
   nebula: { zoom: 0.996, bassZoom: 0.01, rot: -0.003, drift: 1.2, fade: 0.95, wave: "line" },
-  pulse:  { zoom: 1.0, bassZoom: 0.03, rot: 0.001, drift: 0, fade: 0.86, wave: "line", kick: 0.12 },
+  pulse:  { zoom: 1.0, bassZoom: 0.03, rot: 0.001, drift: 0, fade: 0.86, wave: "stars", kick: 0.12 },   // star flight: needs no beats to look its own
 };
 const STYLE_KEYS = Object.keys(STYLES), NUM = ["zoom", "bassZoom", "rot", "drift", "fade", "kick"];
 export class Milk extends Live {
@@ -267,6 +267,17 @@ export class Milk extends Live {
       } else if (this.wave === "rays") {
         const n = VIZ_BANDS * 2, R0 = MH * 0.08;
         for (let i = 0; i < n; i++) { const b = i < VIZ_BANDS ? i : n - 1 - i, a = i / n * Math.PI * 2 + this.phase, L = R0 + MH * 0.42 * lv[b]; ctx.moveTo(cx + Math.cos(a) * R0, cy + Math.sin(a) * R0); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); }
+      } else if (this.wave === "stars") {
+        // star flight: sparks leave the centre from the bands that are loud, faster with the bass; each draws the stretch it
+        // covered this frame, which the feedback turns into warp streaks
+        const st = this.stars || (this.stars = []);
+        for (let b = 0; b < VIZ_BANDS && st.length < 140; b++) if (lv[b] > 0.35 && Math.random() < lv[b] * 0.5) st.push({ a: Math.random() * Math.PI * 2, r: 2 + Math.random() * 6, v: 0.03 + b / VIZ_BANDS * 0.04 });
+        const sp = 1 + this.bass * 1.8 + this.kickV;
+        for (let i = st.length - 1; i >= 0; i--) {
+          const q = st[i], r0 = q.r; q.r *= 1 + q.v * sp; q.r += 0.4 * sp;
+          if (q.r > MW * 0.75) { st.splice(i, 1); continue; }
+          const ca = Math.cos(q.a), sa = Math.sin(q.a); ctx.moveTo(cx + ca * r0, cy + sa * r0); ctx.lineTo(cx + ca * q.r, cy + sa * q.r);
+        }
       } else {
         const amp = MH * (0.18 + this.bass * 0.15);
         for (let i = 0; i < 128; i++) { const x = MW * i / 127, y = cy + ((u[i * 8] - 128) / 128) * amp; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
