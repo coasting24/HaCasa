@@ -303,14 +303,17 @@ export function mediaCard(p, e) {
   const prog = on && dur ? Math.min(100, Math.max(0, ((pos ?? 0) + (a.media_position_updated_at ? (Date.now() - new Date(a.media_position_updated_at)) / 1000 : 0)) / dur * 100)) : v.paused && dur && pos != null ? pos / dur * 100 : null;
   const kind = a.media_content_type === "music" || a.media_artist ? "music" : "tv";
   // a Music Assistant player that plays: real equalizer bars in place of the icon (visualizer.js; admins, with motion on)
-  const eqId = on && a.app_id === "music_assistant" && a.active_queue && p.hass.user?.is_admin && motionOn() && !p.config.perfMode ? a.active_queue : null;
+  // (config.mediaViz: "" = in the icon's place, "card" = a spectrum across the card, "milk" = the small MilkDrop, "off")
+  const vizMode = p.config.mediaViz || "", eqId = vizMode !== "off" && on && a.app_id === "music_assistant" && a.active_queue && p.hass.user?.is_admin && motionOn() && !p.config.perfMode ? a.active_queue : null;
   // playing: the app alone (the pause button already says it plays), so the corner never runs into "…"
   const corner = un ? t("Onbereikbaar") : v.app && !off && v.title ? (on ? v.app.name : `${st} · ${v.app.name}`) : st;
   return html`<div class=${classMap({ card: true, media: true, actions: true, on, unavailable: un, art: !!art, appart: !!brand, ...infoCls(cfg) })} style=${art ? `--art:url("${art}")` : brand?.color ? `--app:${brand.color}` : ""}
       ${pressDir(p, pressFor(p, e.id, null, () => p.openPopup({ type: "media", e })))}>
+    ${eqId && vizMode === "card" ? html`<hcn-viz .hass=${p.hass} .player=${eqId}></hcn-viz>` : nothing}
+    ${eqId && vizMode === "milk" ? html`<hcn-milk .hass=${p.hass} .player=${eqId}></hcn-milk>` : nothing}
     ${un ? ua() : nothing}
     ${art ? html`<div class="i cov" style=${`background-image:url("${art}")`}></div>`
-      : html`<div class="i">${brand ? html`<ha-icon icon=${brand.icon}></ha-icon>` : icoFor(p, e.id, kind === "music" ? "mdi:music-note-outline" : "mdi:television-play", kind === "music" ? "music" : "tv")}${eqId ? html`<hcn-eq .hass=${p.hass} .player=${eqId}></hcn-eq>` : nothing}</div>`}
+      : html`<div class="i">${brand ? html`<ha-icon icon=${brand.icon}></ha-icon>` : icoFor(p, e.id, kind === "music" ? "mdi:music-note-outline" : "mdi:television-play", kind === "music" ? "music" : "tv")}${eqId && !vizMode ? html`<hcn-eq .hass=${p.hass} .player=${eqId}></hcn-eq>` : nothing}</div>`}
     <div class="c">${corner}</div>
     <div class="n">${v.title && !off ? v.title : label(p, e)}</div>
     <div class="s">${v.title && !off ? [v.artist, label(p, e)].filter(Boolean).join(" · ") : un ? t("Onbereikbaar") : v.app && !off ? v.app.name : st}</div>
