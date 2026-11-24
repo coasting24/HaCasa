@@ -302,9 +302,9 @@ export function mediaCard(p, e) {
   const a = v.info?.attributes || {}, dur = num(a.media_duration), pos = num(a.media_position);
   const prog = on && dur ? Math.min(100, Math.max(0, ((pos ?? 0) + (a.media_position_updated_at ? (Date.now() - new Date(a.media_position_updated_at)) / 1000 : 0)) / dur * 100)) : v.paused && dur && pos != null ? pos / dur * 100 : null;
   const kind = a.media_content_type === "music" || a.media_artist ? "music" : "tv";
-  // a Music Assistant player that plays: real equalizer bars in place of the icon (visualizer.js; admins, with motion on)
+  // a Music Assistant player that plays: real equalizer bars in place of the icon (visualizer.js; admins, unless Animations are off)
   // (config.mediaViz: "" = in the icon's place, "card" = a spectrum across the card, "milk" = the small MilkDrop, "off")
-  const vizMode = p.config.mediaViz || "", eqId = vizMode !== "off" && on && a.app_id === "music_assistant" && a.active_queue && p.hass.user?.is_admin && motionOn() && !p.config.perfMode ? a.active_queue : null;
+  const vizMode = p.config.mediaViz || "", eqId = vizMode !== "off" && on && a.app_id === "music_assistant" && a.active_queue && p.hass.user?.is_admin && !p.config.noMotion && !p.config.perfMode ? a.active_queue : null;   // the visuals were switched on on purpose: only HaCasa's own "Animations" switch stops them, not the system's "reduce motion"
   // playing: the app alone (the pause button already says it plays), so the corner never runs into "…"
   const corner = un ? t("Onbereikbaar") : v.app && !off && v.title ? (on ? v.app.name : `${st} · ${v.app.name}`) : st;
   return html`<div class=${classMap({ card: true, media: true, actions: true, on, unavailable: un, art: !!art, appart: !!brand, ...infoCls(cfg) })} style=${art ? `--art:url("${art}")` : brand?.color ? `--app:${brand.color}` : ""}
