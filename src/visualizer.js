@@ -208,17 +208,18 @@ export class Visualizer extends Live {
 }
 if (!customElements.get("hcn-viz")) customElements.define("hcn-viz", Visualizer);
 
-/* ---------- <hcn-milk>: a small MilkDrop of its own. MilkDrop's look comes from feedback: every image is the last one,
+/* ---------- <hcn-milk>: a small MilkDrop of its own (five styles: tunnel, vortex, nebula, star flight, kaleidoscope). MilkDrop's look comes from feedback: every image is the last one,
    slightly zoomed, turned or shifted and a little faded, with the sound drawn on top, so the sound leaves trails, tunnels
    and swirls. Done here on a plain 2D canvas at 240 × 150 px (scaled up softly by the browser), at most 30 frames a
-   second, no WebGL, no library: light enough for an old wall tablet. Four styles (parameter sets) take turns every few
+   second, no WebGL, no library: light enough for an old wall tablet. The styles (parameter sets) take turns every few
    minutes and on a new track, sliding from one to the next; the bass drives zoom and turn, beats kick, the cover gives
    the colours. ---------- */
 const MW = 240, MH = 150, STYLES = {
   tunnel: { zoom: 1.045, bassZoom: 0.05, rot: 0.004, drift: 0, fade: 0.9, wave: "ring" },
   vortex: { zoom: 1.012, bassZoom: 0.02, rot: 0.022, drift: 0, fade: 0.93, wave: "rays" },
   nebula: { zoom: 0.996, bassZoom: 0.01, rot: -0.003, drift: 1.2, fade: 0.95, wave: "line" },
-  pulse:  { zoom: 1.0, bassZoom: 0.03, rot: 0.001, drift: 0, fade: 0.86, wave: "stars", kick: 0.12 },   // star flight: needs no beats to look its own
+  pulse:  { zoom: 1.0, bassZoom: 0.03, rot: 0.001, drift: 0, fade: 0.86, wave: "stars", kick: 0.12 },
+  kaleido: { zoom: 1.006, bassZoom: 0.012, rot: 0.012, drift: 0, fade: 0.9, wave: "kaleido" },   // star flight: needs no beats to look its own
 };
 const STYLE_KEYS = Object.keys(STYLES), NUM = ["zoom", "bassZoom", "rot", "drift", "fade", "kick"];
 export class Milk extends Live {
@@ -267,6 +268,17 @@ export class Milk extends Live {
       } else if (this.wave === "rays") {
         const n = VIZ_BANDS * 2, R0 = MH * 0.08;
         for (let i = 0; i < n; i++) { const b = i < VIZ_BANDS ? i : n - 1 - i, a = i / n * Math.PI * 2 + this.phase, L = R0 + MH * 0.42 * lv[b]; ctx.moveTo(cx + Math.cos(a) * R0, cy + Math.sin(a) * R0); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); }
+      } else if (this.wave === "kaleido") {
+        // kaleidoscope: one stretch of the waveform, bent into an arc, drawn eight times around the centre (four turns,
+        // each with its mirror image); the turn and the feedback grow it into a symmetric, slowly turning pattern
+        const R0 = MH * 0.06, R1 = MH * (0.38 + this.bass * 0.12), seg = 48;
+        for (let m = 0; m < 8; m++) {
+          const base = (m >> 1) * Math.PI / 2 + this.phase * 0.6, flip = m & 1 ? -1 : 1;
+          for (let i = 0; i < seg; i++) {
+            const k = i / (seg - 1), s0 = (u[i * 16] - 128) / 128, rr = R0 + (R1 - R0) * k, a = base + flip * (k * 0.6 + s0 * 0.35);
+            const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+          }
+        }
       } else if (this.wave === "stars") {
         // star flight: sparks leave the centre from the bands that are loud, faster with the bass; each draws the stretch it
         // covered this frame, which the feedback turns into warp streaks
