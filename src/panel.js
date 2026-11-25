@@ -844,10 +844,13 @@ class HacasaNova extends LitElement {
       so all rooms are always in sight (a wall panel: nobody has to know the bar scrolls); size S / M / L, icons optional */
   roomGrid(room, isPage) {
     if (!this.roomButtons()) return nothing;
-    const size = this.config.navBtnSize || "m", icons = this.config.navBtnIcons !== false;
-    return html`<div class=${classMap({ links: true, roomgrid: true, [size]: true })}>${this.rooms.map(r => html`<button class=${classMap({ pill: true, active: room?.id === r.id })} @click=${() => this.go(r)}>
-      ${icons && r.icon ? html`<ha-icon icon=${r.icon}></ha-icon>` : nothing}<span>${r.name}</span></button>`)}
-      <button class=${classMap({ pill: true, more: true, active: !!isPage })} @click=${() => { this.drawer = false; this.openPopup({ type: "more" }); }}>${icons ? html`<ha-icon icon="mdi:dots-horizontal"></ha-icon>` : nothing}<span>${t("Meer")}</span></button>
+    // label: "both" (icon + name, default), "name" or "icon" (the name as tooltip; a room without an icon keeps its name)
+    const size = this.config.navBtnSize || "m", label = this.config.navBtnLabel || (this.config.navBtnIcons === false ? "name" : "both");
+    const btn = (ico, name, active, go, cls = "") => { const only = label === "icon" && ico;
+      return html`<button class=${classMap({ pill: true, active, io: !!only, [cls]: !!cls })} title=${only ? name : nothing} aria-label=${name} @click=${go}>
+        ${ico && label !== "name" ? html`<ha-icon icon=${ico}></ha-icon>` : nothing}${only ? nothing : html`<span>${name}</span>`}</button>`; };
+    return html`<div class=${classMap({ links: true, roomgrid: true, [size]: true })}>${this.rooms.map(r => btn(r.icon, r.name, room?.id === r.id, () => this.go(r)))}
+      ${btn("mdi:dots-horizontal", t("Meer"), !!isPage, () => { this.drawer = false; this.openPopup({ type: "more" }); }, "more")}
       <button class=${classMap({ pill: true, srchb: true, active: !!this.searchOpen })} title=${t("Zoeken")} aria-label=${t("Zoeken")} @click=${() => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; }}><img class="ico" src=${icon("search")} alt=""></button></div>`;
   }
   renderLinks(room, isPage) {

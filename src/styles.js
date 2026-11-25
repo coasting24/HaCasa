@@ -91,6 +91,9 @@ export const styles = css`
   .roomgrid button.active{background:rgba(255,255,255,.28);color:#fff;font-weight:700}
   .roomgrid button ha-icon{--mdc-icon-size:20px;width:20px;height:20px;opacity:.85}
   .roomgrid button.srchb{padding:0;width:44px;justify-content:center}
+  .roomgrid button.io{padding:0;width:44px;justify-content:center}   /* icon only: round like the search button */
+  .roomgrid.s button.io{width:36px}
+  .roomgrid.l button.io{width:56px}
   .roomgrid button.srchb img.ico{width:16px;height:16px}
   .roomgrid.s button.srchb{width:36px}
   .roomgrid.l button.srchb{width:56px}
