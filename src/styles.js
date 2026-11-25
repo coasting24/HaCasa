@@ -1,4 +1,5 @@
 import { outsideStyles } from "./outside.js";
+import { situationStyles } from "./situation.js";
 import { eqStyles } from "./visualizer.js";
 import { css, unsafeCSS } from "lit";
 import { settingsStyles } from "./settings.js";
@@ -998,6 +999,7 @@ export const styles = css`
   @media (min-width:600px) and (max-width:900px){ .strip{grid-template-columns:1fr 1fr 1fr} .popup .pvc .card{width:min(100%, calc((100vw - 52px) / 3))} }
   ${unsafeCSS(pageStyles)}
   ${unsafeCSS(outsideStyles)}
+  ${unsafeCSS(situationStyles)}
   ${unsafeCSS(eqStyles)}
   ${unsafeCSS(extraStyles)}
   ${unsafeCSS(extra2Styles)}

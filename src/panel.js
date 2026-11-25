@@ -2,6 +2,7 @@
 // page per area, straight from the area/device/entity registries.
 import { liveLayer } from "./livephoto.js";
 import { warningItem } from "./outside.js";
+import { situationOf, orderBySituation, NIGHT_KEYS, nightAlert } from "./situation.js";
 import { weatherLayer } from "./bgweather.js";
 import { blurredBg, edgeBg } from "./perf.js";
 import { homeQuips, roomQuips } from "./quips.js";
@@ -737,6 +738,7 @@ class HacasaNova extends LitElement {
     const room = this.room, h = this.home;
     const isPage = this.settings || this.page;
     const bg = isPage ? "" : this.bgUrl(room);
+    if (isPage || room) this.classList.remove("night", "nalert");   // the night look belongs to the home page only
     const alarm = h.alarm, armed = alarm && alarm.state !== "disarmed" && !unavailable(alarm);
     const alarmLbl = alarm ? ({ disarmed: t("Uit"), armed_home: t("Thuis"), armed_away: t("Weg"), armed_night: t("Nacht"), armed_vacation: t("Vakantie"), arming: t("Inschakelen"), pending: t("Wachten"), triggered: t("Alarm"), unavailable: "?" }[alarm.state] || alarm.state) : null;
     const alarmCls = alarm ? ({ disarmed: "off", armed_home: "home", arming: "arming", pending: "arming", triggered: "triggered", unavailable: "off" }[alarm.state] || "armed") : "";
@@ -950,7 +952,12 @@ class HacasaNova extends LitElement {
     const su = selfUpdate(this);   // a newer HaCasa Nova: first in the row, tap = what's new (+ install via HACS)
     { const wi = warningItem(this); if (wi) items.unshift(wi); }   // an official weather warning comes first
     if (su) items.unshift({ k: "update", icon: "mdi:arrow-up-circle-outline", title: t("HaCasa Nova {v}", { v: String(su.to).replace(/^v/, "") }), text: t("update beschikbaar · tik voor wat er nieuw is"), tap: su.open });
-    const editing = this.editing("home"), cards = editing ? editStrip(this, "home") : this.applyPage("home", homeCards(this, h)).map(c => c.tpl);
+    // with the situations on (config.situations) the cards that matter now come first: morning, evening, night, away
+    const editing = this.editing("home"), sit = this.config.situations ? situationOf(this) : null;
+    // night (config.nightDim, on by default): the photo dimmed and only "All shut?", security and the climate; motion or a door wakes it a little
+    const night = sit === "night" && this.config.nightDim !== false && !editing;
+    this.classList.toggle("night", night); this.classList.toggle("nalert", night && nightAlert(this));
+    const cards = editing ? editStrip(this, "home") : (c => sit ? orderBySituation(night ? c.filter(x => NIGHT_KEYS.includes(x.key)) : c, sit) : c)(this.applyPage("home", homeCards(this, h))).map(c => c.tpl);
     return html`
       ${this.renderTitle(h.temp, t(this.pageCfg("home").title || this.config.home?.greeting || "") || greeting(), "", this.tickerOn("home", items), html`${this.renderPills(h)}${quickRow(this)}`, "home", this.renderWx(h.weather), h.hum)}
       ${editing ? editTools(this, "home") : nothing}
@@ -1038,6 +1045,7 @@ class HacasaNova extends LitElement {
     { const skip = new Set(this.pageCfg(r.id).tickerSkip || []), bs = this.config.home?.bannerSensors, mot = e.motion.filter(x => !skip.has(x.id) && x.state);   // sensors left out in the page settings don't count (#202)
       const last = mot.map(x => x.state).sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed))[0], on = mot.filter(x => !bs || bs.includes(x.id)).some(x => isOn(x.state));
       if (last) items.push({ k: "motion", icon: "mdi:motion-sensor", title: t("Beweging"), text: on ? t("Nu") : relTime(last.last_changed) }); }
+    this.classList.remove("night", "nalert");   // the night look is the home page's only
     const editing = this.editing(r.id), cards = editing ? editStrip(this, r.id) : this.applyPage(r.id, this.roomCards(r)).map(c => c.tpl);
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), this.renderPills(null, r.id), r.id, nothing, r.hum)}

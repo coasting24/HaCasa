@@ -1,4 +1,5 @@
 // Popup renderers. `pop` is the panel's open popup descriptor {type, ...}; `p` the panel.
+import { leavingPopup, coversPopup } from "./situation.js";
 import { t, locale, timeOpts } from "./i18n.js";
 import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
@@ -409,6 +410,8 @@ export function renderPopup(p, pop) {
       return wrap(t("Wie is thuis"), t("{n} van {m}", { n: home.home, m: home.persons.length }), home.persons.filter(atHome).map(s => s.attributes.friendly_name).join(", ") || t("Niemand thuis"), html`
         <ul>${home.persons.map(s => li("mdi:account-outline", s.attributes.friendly_name, atHome(s) ? t("Thuis") : s.state === "not_home" ? t("Weg") : s.state, { on: atHome(s), sub: personTravel(p, s) || relTime(s.last_changed), img: s.attributes.entity_picture || null }))}</ul>`);
     case "weather": return weatherPopup(p, pop, UI());
+    case "leaving": return leavingPopup(p, pop, UI());
+    case "coversall": return coversPopup(p, pop, UI());
     case "defaults": {
       const def = DEFAULT_TYPES.find(x => x.type === pop.ctype); if (!def) return nothing;
       return html`<div class="popup wide cardf"><h2><span>${t("Kaartstandaard")}<span class="rm"> · ${t(def.label)}</span></span> ${hbtns(p, pop)}</h2><div class="big">${t(def.label)}</div><div class="sub">${t("Zo zien deze kaarten eruit; bewaren met Opslaan bovenaan de instellingen")}</div>${defaultsForm(p, pop)}</div>`;

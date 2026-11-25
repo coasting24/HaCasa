@@ -12,6 +12,7 @@ import { tw, motionOn } from "./motion.js";
 import { sky, wxIcon, feelsLike, precipUnit, precipText, nightAt, nightCond } from "./sky.js";
 import { authenticText } from "./authentic/index.js";
 import { outsideCard } from "./outside.js";
+import { leavingCard, coversCard, lightsAllCard } from "./situation.js";
 import "./visualizer.js";
 import { diaryCard } from "./diary.js";
 import { graphCard, stepGraph } from "./graph.js";
@@ -702,7 +703,7 @@ export function homeCards(p, h, all = false) {
   const list = homeAllCards(p, h);
   if (all) return list;
   const added = new Set([...(p.config.pages?.home?.add || []), ...(p.config.pages?.home?.keep || [])]);
-  return list.filter(x => HOME_DEFAULT.includes(x.key) || added.has(x.key) || x.key.startsWith("group:") || x.key.startsWith("graph:") || x.key.startsWith("tpl"));
+  return list.filter(x => HOME_DEFAULT.includes(x.key) || (["leaving", "covers", "lightsall"].includes(x.key) && p.config.situations) || added.has(x.key) || x.key.startsWith("group:") || x.key.startsWith("graph:") || x.key.startsWith("tpl"));
 }
 function homeAllCards(p, h) {
   const cards = [], add = (key, label, tpl) => cards.push({ key, label, tpl });
@@ -753,6 +754,9 @@ function homeAllCards(p, h) {
     <div class="n">${t("Energie")}</div><div class="s">${tw(`${Math.round(num(h.energy.power.state) ?? 0)} W`)}</div>
     <div class="lbl">${h.energy.today ? t("Vandaag {n} kWh", { n: num(h.energy.today.state)?.toFixed(1) }) : ""}</div><div class="i">${ico("mdi:flash-outline", "electric")}</div></div>`);
   if (gardenReady(p)) add("garden", t("Tuin"), gardenCard(p));
+  add("leaving", t("Alles dicht?"), leavingCard(p));
+  if (p.rooms.some(r => r.ents.covers.length)) add("covers", t("Alle rolluiken"), coversCard(p));   // these two come with the situations (evening) or once added
+  if ((h.lights || []).length) add("lightsall", t("Lampen"), lightsAllCard(p));   // shown with the situations (config.situations) or once added
   add("diary", t("Dagboek"), diaryCard(p));   // only shown once added (Add card → Diary): it loads the day's history
   return cards;
 }

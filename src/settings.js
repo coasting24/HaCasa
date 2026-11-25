@@ -1,6 +1,7 @@
 // Settings page: edits a draft of the config and stores it per user with Home Assistant's
 // frontend user-data storage (frontend/set_user_data). config.json stays the base; user data overrides it.
 // The page is split into tabs (left) so each topic stays small.
+import { situationOf, SITUATION_LABEL } from "./situation.js";
 import { tickerCalendars } from "./extras2.js";
 import { t, locale, LANGUAGES } from "./i18n.js";
 import { html, nothing } from "lit";
@@ -173,6 +174,11 @@ export function renderSettings(p) {
         ${field(t("Media-achtergrond"), text(d.mediaIdleImage, v => set("mediaIdleImage", v), "/local/images/music/idle-media.gif"), t("op mediakaarten als er niets speelt; leeg = geen"))}
         ${field(t("Muziek visualiseren"), pills([{ v: "", l: t("Als icoon") }, { v: "card", l: t("Hele kaart") }, { v: "milk", l: t("MilkDrop (licht)") }, { v: "off", l: t("uit") }], d.mediaViz || "", "", v => set("mediaViz", v || undefined)), t("bij Music Assistant-spelers: echte balken uit de muziek, via de plug-in MilkDrop Visualizer van Music Assistant; alleen voor beheerders"))}
         ${field(t("Weer op de startpagina"), pills([{ v: "", l: t("Getekend") }, { v: "scene", l: t("Luchttegel") }], d.wxIcons, "", v => set("wxIcons", v)), t("luchttegel: het huidige weer als glazen tegel met een stukje lucht, de temperatuur, de tekst en de verwachting per uur; de verwachting houdt de getekende pictogrammen"))}
+        ${field(t("Startpagina volgt de situatie"), html`<div class="row">${check(!!d.situations, v => set("situations", v || undefined))}${d.situations ? html`<small style="align-self:center;opacity:.8">${t("nu: {s}", { s: SITUATION_LABEL()[situationOf({ config: d, hass: p.hass, home: p.home })] })}</small>` : nothing}</div>`, t("ochtend: weer, agenda en afval eerst; avond: scènes, klimaat en ‘Alles dicht?’; nacht: ‘Alles dicht?’ en beveiliging; niemand thuis: beveiliging en energie; de rest houdt zijn volgorde"))}
+        ${d.situations ? field(t("Nachts dimmen"), check(d.nightDim !== false, v => set("nightDim", v ? undefined : false)), t("’s nachts een gedimde foto en alleen ‘Alles dicht?’, beveiliging en klimaat; bij beweging of een deur die opengaat licht de beveiliging op")) : nothing}
+        ${d.situations ? field(t("Voordeur"), select(p.hass, "binary_sensor", d.leavingDoor, v => set("leavingDoor", v || undefined), { empty: t("elke deur"), filter: s => ["door", "garage_door", "opening"].includes(s.attributes.device_class) }), t("gaat die open terwijl er nog iets aan is, dan komt ‘Alles dicht?’ voor een paar minuten vooraan, met de knop ‘Ik ga weg’")) : nothing}
+        ${d.situations && p.home?.alarm ? field(t("‘Ik ga weg’ zet het alarm aan"), check(!!d.leavingArm, v => set("leavingArm", v || undefined)), t("schakelt ook het alarm in op afwezig; vraagt het alarm een code, dan via de beveiliging")) : nothing}
+        ${d.situations ? field(t("Situatie uit helper"), select(p.hass, "input_select", d.situationEntity, v => set("situationEntity", v || undefined), { empty: t("automatisch (klok en aanwezigheid)") }), t("een input_select met de opties morning, day, evening, night, away; leeg = automatisch")) : nothing}
         ${field(t("Weerkaart"), pills([{ v: "", l: "HaCasa" }, { v: "outside", l: t("Weerinfo") }], d.wxAnim === "outside" ? "outside" : "", "", v => set("wxAnim", v || undefined)), t("HaCasa: de bewegende lucht met de temperatuur; weerinfo: waarschuwingen, pollen, uv, luchtkwaliteit en de dag, voor als de achtergrondfoto het weer al toont"))}
         ${d.wxAnim === "outside" ? html`
           ${field(t("Weerinfo: waarschuwingen"), select(p.hass, "sensor", d.outWarn, v => set("outWarn", v || undefined), { filter: s => s.attributes.warning_count != null }), t("een weerwaarschuwingssensor zoals die van DWD; automatisch = gevonden"))}
