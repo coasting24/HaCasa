@@ -735,7 +735,7 @@ class HacasaNova extends LitElement {
     const phone = matchMedia("(max-width:900px)").matches;
     return html`${wxDefs}
       ${this._prevBg ? html`<div class="bg out" style="--bg:url(&quot;${this._prevBg}&quot;)"></div>` : nothing}
-      ${keyed(bg || "plain", isPage ? html`<div class="bg plain"></div>` : html`<div class=${classMap({ bg: true, grad: !this.bgOk(bg) })} style=${this.bgStyle(bg, room?.slug)}>${this.bgOk(bg) && (room || !this.moodImages().some(u => bg.startsWith(u.replace(/\.jpg$/, ".")))) ? liveLayer(this, room, bg) : nothing}</div>`)}
+      ${keyed(bg || "plain", isPage ? html`<div class="bg plain"></div>` : html`<div class=${classMap({ bg: true, grad: !this.bgOk(bg) })} style=${this.bgStyle(bg, room?.slug)}>${this.bgOk(bg) ? liveLayer(this, room, bg, { noLit: !room && this.moodImages().some(u => bg.startsWith(u.replace(/\.jpg$/, "."))) }) : nothing}</div>`)}
       ${isPage ? nothing : weatherLayer(this, room)}
       <nav class=${classMap({ nav: true, open: this.drawer, srch: !!this.searchOpen, topnav: this.config.phoneNav === "top" })}>
         <a class="logo" @click=${() => this.go(null)}><span class="mark"><img class="ico logo" src=${icon("hacasa")} alt="HaCasa"></span>${brandTitle(this.config.title || t("Thuis") + ".")}</a>

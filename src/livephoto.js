@@ -47,14 +47,17 @@ function effect(kind) {
 }
 
 /** what goes inside the room's .bg: the lit photo and the effects */
-export function liveLayer(p, room, baseUrl) {
+/** noLit: a photo of the home series that follows weather and time (homeMood) is shown, which the lit photo was not made
+    for; the effects stay, as the series keeps the same view */
+export function liveLayer(p, room, baseUrl, { noLit = false } = {}) {
   const pc = p.pageCfg(room ? room.id : "home") || {};
   const lit = room ? room.lightsOn > 0 : (p.home?.lightsOn?.length || 0) > 0;
   const fx = (pc.fx || []).map(f => ({ ...f, at: spot(f.at), kind: FX_KINDS[f.kind] ? f.kind : fxDefault(f.entity) })).filter(f => f.at && f.entity);
-  if (!pc.imageLit && !fx.length) return nothing;
+  const litUrl = noLit ? null : pc.imageLit;
+  if (!litUrl && !fx.length) return nothing;
   const size = fx.length ? photoSize(p, baseUrl) : null, k = size ? size.w / 2000 * 1.7 : 1;   // the drawings are made for a 2000 px wide photo; 1.7 keeps them readable behind the cards
   const grad = (id, c, a) => svg`<radialGradient id=${id}><stop offset="0" stop-color=${c} stop-opacity=${a}></stop><stop offset="1" stop-color=${c} stop-opacity="0"></stop></radialGradient>`;
-  return html`${pc.imageLit ? html`<div class="bglit" style=${`--bgl:url("${pc.imageLit}");opacity:${lit ? 1 : 0}`}></div>` : nothing}
+  return html`${litUrl ? html`<div class="bglit" style=${`--bgl:url("${litUrl}");opacity:${lit ? 1 : 0}`}></div>` : nothing}
     ${size ? html`<svg class="bgfx" viewBox=${`0 0 ${size.w} ${size.h}`} preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
       <defs>${grad("hclfg", "#8fd0ff", ".55")}${grad("hclfw", "#ffd59a", ".6")}${grad("hclfs", "#9fc4ff", ".5")}</defs>
       ${fx.map(f => svg`<g class="lfx" style=${`opacity:${fxActive(p, f.entity, f.kind) ? 1 : 0}`} transform=${`translate(${f.at[0] / 100 * size.w} ${f.at[1] / 100 * size.h}) scale(${k})`}>${effect(f.kind)}</g>`)}
