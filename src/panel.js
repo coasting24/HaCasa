@@ -1,6 +1,7 @@
 // HaCasa Nova: a Home Assistant custom panel (panel_custom) that builds a home view and one
 // page per area, straight from the area/device/entity registries.
 import { liveLayer } from "./livephoto.js";
+import { warningItem } from "./outside.js";
 import { weatherLayer } from "./bgweather.js";
 import { blurredBg, edgeBg } from "./perf.js";
 import { homeQuips, roomQuips } from "./quips.js";
@@ -448,14 +449,14 @@ class HacasaNova extends LitElement {
   }
   async loadForecast() {
     const w = this.home.weather; if (!w) return;
-    this.popup = { ...this.popup, loading: true };
+    this.popup = { ...this.popup, loading: true }; const focus = this.popup.focus;   // where to scroll, if opened from the weather info
     try {
       const r = await this.hass.callWS({ type: "call_service", domain: "weather", service: "get_forecasts", service_data: { type: "hourly" }, target: { entity_id: w.entity_id }, return_response: true });
       const hourly = r?.response?.[w.entity_id]?.forecast || [];
       let daily = [];
       try { const d = await this.hass.callWS({ type: "call_service", domain: "weather", service: "get_forecasts", service_data: { type: "daily" }, target: { entity_id: w.entity_id }, return_response: true }); daily = d?.response?.[w.entity_id]?.forecast || []; } catch {}
-      this.popup = { type: "weather", forecast: hourly, dailyForecast: daily };
-    } catch (e) { this.popup = { type: "weather", forecast: [], dailyForecast: w.attributes.forecast || [] }; }
+      this.popup = { type: "weather", focus, forecast: hourly, dailyForecast: daily };
+    } catch (e) { this.popup = { type: "weather", focus, forecast: [], dailyForecast: w.attributes.forecast || [] }; }
   }
 
   /* ---------- strip: wheel + mouse drag ---------- */
@@ -947,6 +948,7 @@ class HacasaNova extends LitElement {
     for (const m of modeList(this).filter(m => m.on)) items.push({ k: "modes", uicon: m.icon || "mdi:account-switch-outline", title: m.label, text: t("Actief") });
     items.push(...this.applianceItems(this.rooms.flatMap(r => r.ents.appliances)));
     const su = selfUpdate(this);   // a newer HaCasa Nova: first in the row, tap = what's new (+ install via HACS)
+    { const wi = warningItem(this); if (wi) items.unshift(wi); }   // an official weather warning comes first
     if (su) items.unshift({ k: "update", icon: "mdi:arrow-up-circle-outline", title: t("HaCasa Nova {v}", { v: String(su.to).replace(/^v/, "") }), text: t("update beschikbaar · tik voor wat er nieuw is"), tap: su.open });
     const editing = this.editing("home"), cards = editing ? editStrip(this, "home") : this.applyPage("home", homeCards(this, h)).map(c => c.tpl);
     return html`

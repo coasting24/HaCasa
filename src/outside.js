@@ -74,14 +74,24 @@ function facts(p, w, src) {
   return out;
 }
 
+/** where in the weather popup each fact of the card is shown in full */
+const FOCUS = { pollen: "pollen", uv: "kpi-uv", aqi: "kpi-aqi", today: "week", wind: "kpi-wind", sun: "kpi-rise" };
+
+/** the active warnings as a line under the greeting: names and until when; a tap opens them in the weather popup */
+export function warningItem(p) {
+  const src = outsideSources(p), warn = warnings(st(p, src.warn)); if (!warn.length) return null;
+  const until = warn.map(x => x.end).filter(Boolean).sort((x, y) => y - x)[0];
+  return { k: "warnings", icon: "mdi:alert-outline", title: warn.map(x => x.name).join(` ${t("en")} `), text: until ? t("tot {t}", { t: untilText(until) }) : t("waarschuwing"), tap: () => p.openPopup({ type: "weather", focus: "warn" }) };
+}
+
 export function outsideCard(p, w) {
   const src = outsideSources(p), warn = warnings(st(p, src.warn)), list = facts(p, w, src).slice(0, 4);
   const top = warn[0], until = warn.map(x => x.end).filter(Boolean).sort((x, y) => y - x)[0];
   return html`<div class="card wxout" ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }), hold: src.warn && warn.length ? () => p.moreInfo(src.warn) : null })}>
     <div class="i">${wxIcon(nightCond(w?.state || "", nightAt(p.hass)), 36)}</div>
     <div class="c">${t("Weerinfo")}</div>
-    ${top ? html`<div class="owarn" style=${`--wc:${top.color}`}><ha-icon icon="mdi:alert-outline"></ha-icon><span>${warn.map(x => x.name).join(` ${t("en")} `)}${until ? html`<em> · ${t("tot {t}", { t: untilText(until) })}</em>` : nothing}</span></div>` : nothing}
-    <div class="ofacts">${list.map(f => html`<div class=${f.hot ? "hot" : ""}><small>${f.label}</small><b>${f.value}</b></div>`)}</div>
+    ${top ? html`<button class="owarn" style=${`--wc:${top.color}`} @click=${() => p.openPopup({ type: "weather", focus: "warn" })}><ha-icon icon="mdi:alert-outline"></ha-icon><span>${warn.map(x => x.name).join(` ${t("en")} `)}${until ? html`<em> · ${t("tot {t}", { t: untilText(until) })}</em>` : nothing}</span></button>` : nothing}
+    <div class="ofacts">${list.map(f => html`<button class=${f.hot ? "hot" : ""} @click=${() => p.openPopup({ type: "weather", focus: FOCUS[f.k] })}><small>${f.label}</small><b>${f.value}</b></button>`)}</div>
   </div>`;
 }
 
@@ -89,7 +99,7 @@ export function outsideCard(p, w) {
 export function warnBlock(p, src) {
   const list = warnings(st(p, src.warn)); if (!list.length) return nothing;
   const span = x => [x.start && x.start > Date.now() ? t("vanaf {t}", { t: untilText(x.start) }) : "", x.end ? t("tot {t}", { t: untilText(x.end) }) : ""].filter(Boolean).join(" ");
-  return html`<div class="pwarns">${list.map(x => html`<button class="pwarn" style=${`--wc:${x.color}`} @click=${() => p.moreInfo(src.warn)}>
+  return html`<div class="pwarns" data-sec="warn">${list.map(x => html`<button class="pwarn" style=${`--wc:${x.color}`} @click=${() => p.moreInfo(src.warn)}>
     <ha-icon icon="mdi:alert-outline"></ha-icon><div><b>${x.name}</b>${span(x) ? html`<em> · ${span(x)}</em>` : nothing}${x.text ? html`<small>${x.text}</small>` : nothing}</div></button>`)}</div>`;
 }
 
@@ -117,7 +127,11 @@ export const outsideStyles = `
   .card.wxout .owarn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .card.wxout .owarn em{font-style:normal;font-weight:500;opacity:.85}
   .card.wxout .ofacts{grid-area:f;display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;min-width:0}
-  .card.wxout .ofacts>div{min-width:0}
+  .card.wxout .ofacts>button{min-width:0;text-align:left;font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;border-radius:6px}
+  .card.wxout .ofacts>button:active{background:rgba(255,255,255,.08)}
+  .card.wxout button.owarn{font:inherit;font-size:13px;font-weight:600;cursor:pointer;width:100%;text-align:left}
+  .popup [data-sec].secflash{animation:secFlash 1.6s ease}
+  @keyframes secFlash{0%,100%{box-shadow:none}20%,60%{box-shadow:0 0 0 2px rgba(255,210,122,.7)}}
   .card.wxout .ofacts small{display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .card.wxout .ofacts b{display:block;font-size:14px;font-weight:600;color:var(--fg);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .card.wxout .ofacts .hot b{color:#ffd27a}
@@ -125,7 +139,7 @@ export const outsideStyles = `
     .card.wxout .owarn{font-size:12px;padding:5px 8px;gap:6px;margin-bottom:6px}
     .card.wxout .owarn em{display:none}
     .card.wxout .ofacts{grid-template-columns:1fr;gap:4px}
-    .card.wxout .ofacts>div:nth-child(n+3),.card.wxout .owarn~.ofacts>div:nth-child(n+2){display:none}
+    .card.wxout .ofacts>*:nth-child(n+3),.card.wxout .owarn~.ofacts>*:nth-child(n+2){display:none}
     .card.wxout .ofacts small{font-size:9px;letter-spacing:1px}
     .card.wxout .ofacts b{font-size:12px}
   }

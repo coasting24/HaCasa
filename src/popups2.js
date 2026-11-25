@@ -60,6 +60,7 @@ const rainLine = r => { if (!r) return ""; const step = r.minutes / r.pts.length
   let end = wet[0]; while (wet.includes(end + 1)) end++;
   const from = wet[0] * step, len = Math.round((end + 1 - wet[0]) * step);
   return from < (r.minute ? 10 : 30) ? t("Regen nu, nog ongeveer {m} min", { m: len }) : t("Regen vanaf {t}, ongeveer {m} min", { t: hm(Date.now() + from * 60000), m: len }); };
+const SCROLLED = new WeakSet();   // popups already scrolled to their focus
 export function weatherPopup(p, pop, ui) {
   const home = p.home, w = home.weather, a = w.attributes, fc = pop.forecast || [], dfc = (pop.dailyForecast || []).slice(0, 7);
   const hourly = fc.filter(f => f.datetime && (new Date(f.datetime) - Date.now()) < 36e5 * 30 && new Date(f.datetime) > Date.now() - 36e5).slice(0, 8);
@@ -73,17 +74,19 @@ export function weatherPopup(p, pop, ui) {
   // what the "Outside" card shows, in full: the warnings on top, pollen below the week, UV and air quality among the figures
   const src = outsideSources(p), pollen = pollenToday(p, src), { uv, aqi } = uvAqi(p, src, w), gust = num(a.wind_gust_speed);
   const kpis = [
-    feels != null ? { v: Math.round(feels) + "°", u: "", n: t("Voelt als") } : null,
-    a.wind_speed != null ? { v: Math.round(a.wind_speed), u: `${a.wind_speed_unit || t("km/u")}${a.wind_bearing != null ? " " + bearing(a.wind_bearing) : ""}`, n: gust != null && gust > num(a.wind_speed) + 4 ? `${t("Wind")} · ${t("vlagen {n}", { n: Math.round(gust) })}` : t("Wind") } : null,
-    a.humidity != null ? { v: Math.round(a.humidity), u: "%", n: t("Vocht") } : null,
-    a.pressure != null ? { v: a.pressure_unit === "inHg" ? num(a.pressure).toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.round(a.pressure), u: a.pressure_unit || "hPa", n: t("Luchtdruk") } : null,
-    uv != null ? { v: Math.round(uv), u: UV_WORD(uv), n: t("UV-index") } : null,
-    aqi != null ? { v: Math.round(aqi), u: AQI_WORD(aqi), n: t("Luchtkwaliteit") } : null,
-    sun ? { v: hm(sun.attributes.next_rising), u: "", n: t("Zonsopkomst") } : null,
-    sun ? { v: hm(sun.attributes.next_setting), u: "", n: t("Zonsondergang") } : null,
-    a.visibility != null ? { v: a.visibility, u: a.visibility_unit || "km", n: t("Zicht") } : null,
+    feels != null ? { k: "feels", v: Math.round(feels) + "°", u: "", n: t("Voelt als") } : null,
+    a.wind_speed != null ? { k: "wind", v: Math.round(a.wind_speed), u: `${a.wind_speed_unit || t("km/u")}${a.wind_bearing != null ? " " + bearing(a.wind_bearing) : ""}`, n: gust != null && gust > num(a.wind_speed) + 4 ? `${t("Wind")} · ${t("vlagen {n}", { n: Math.round(gust) })}` : t("Wind") } : null,
+    a.humidity != null ? { k: "hum", v: Math.round(a.humidity), u: "%", n: t("Vocht") } : null,
+    a.pressure != null ? { k: "press", v: a.pressure_unit === "inHg" ? num(a.pressure).toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.round(a.pressure), u: a.pressure_unit || "hPa", n: t("Luchtdruk") } : null,
+    uv != null ? { k: "uv", v: Math.round(uv), u: UV_WORD(uv), n: t("UV-index") } : null,
+    aqi != null ? { k: "aqi", v: Math.round(aqi), u: AQI_WORD(aqi), n: t("Luchtkwaliteit") } : null,
+    sun ? { k: "rise", v: hm(sun.attributes.next_rising), u: "", n: t("Zonsopkomst") } : null,
+    sun ? { k: "set", v: hm(sun.attributes.next_setting), u: "", n: t("Zonsondergang") } : null,
+    a.visibility != null ? { k: "vis", v: a.visibility, u: a.visibility_unit || "km", n: t("Zicht") } : null,
   ].filter(Boolean).slice(0, 9);
   const head = html`<div class="wxhd"><div><b>${Math.round(num(a.temperature) ?? 0)}°${dot()}${condText(w.state)}</b><span>${[feels != null ? t("Voelt als {v}", { v: Math.round(feels) + "°" }) : null, rainLine(rain) || null].filter(Boolean).map((x, i) => html`${i ? dot() : nothing}${x}`)}${pop.loading && !feels ? t("Laden…") : nothing}</span></div></div>`;
+  // opened from a fact on the "Weather info" card or the warning line: scroll to that part once and let it light up
+  if (pop.focus && !SCROLLED.has(pop)) { SCROLLED.add(pop); setTimeout(() => { const el = p.renderRoot.querySelector(`.popup [data-sec="${pop.focus}"]`); if (!el) return; el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.add("secflash"); setTimeout(() => el.classList.remove("secflash"), 1600); }, 350); }
   return ui.wrap(t("Weer"), html`<div class="skybg">${wxScene(p, w, true)}</div>${head}`, "", html`
     ${warnBlock(p, src)}
     ${rain && rain.pts.some(v => v >= 0.1) ? html`<div class="prow" style="margin-top:4px"><span>${rain.minute ? t("Komende 2 uur") : t("Komende uren")}</span><b>${rain.unit}/h</b></div>
@@ -92,12 +95,12 @@ export function weatherPopup(p, pop, ui) {
     ${hourly.length ? html`<div class="prow"><span>${t("Per uur")}</span><b>${hourly.some(f => f.precipitation_probability != null) ? t("kans op neerslag") : ""}</b></div>
       <div class="fc hours h8">${hourly.map((f, i) => html`<div class=${i === 0 ? "now" : ""}>${new Date(f.datetime).toLocaleTimeString(locale(), timeOpts({ hour: "2-digit" }))}${wxi(nightCond(f.condition, nightAt(p.hass, f.datetime, f.is_daytime)))}<b>${Math.round(f.temperature)}°</b>${prob(f) ? html`<em>${prob(f)}</em>` : nothing}</div>`)}</div>` : nothing}
     ${dfc.length ? html`<div class="prow"><span>${t("Deze week")}</span><b>${Math.round(lo)}° … ${Math.round(hi)}°</b></div>
-      <div class="wk">${dfc.map(f => { const d = new Date(f.datetime), isT = d.toDateString() === todayKey, l = num(f.templow), h = num(f.temperature);
+      <div class="wk" data-sec="week">${dfc.map(f => { const d = new Date(f.datetime), isT = d.toDateString() === todayKey, l = num(f.templow), h = num(f.temperature);
         return html`<div class=${classMap({ wd: true, today: isT })}><span>${isT ? t("Vandaag") : d.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "")}</span>${wxIcon(f.condition, 22)}<span class="lo">${l != null ? Math.round(l) + "°" : ""}</span><div class="range"><i style=${`left:${((l ?? h) - lo) / span * 100}%;width:${Math.max(4, ((h ?? l) - (l ?? h)) / span * 100)}%`}></i></div><span class="hi">${h != null ? Math.round(h) + "°" : ""}</span><em>${prob(f)}</em></div>`; })}</div>` : nothing}
     ${!hourly.length && !dfc.length ? html`<div class="sub">${pop.loading ? t("Laden…") : t("Geen verwachting beschikbaar")}</div>` : nothing}
     ${pollen.length ? html`<div class="prow"><span>${t("Pollen")}</span><b>${t("vandaag")} · ${t("morgen")}</b></div>
-      <div class="pollen">${pollen.map(x => html`<span>${x.name}</span><b class=${x.today >= 1.5 ? "hot" : ""}>${x.today > 0 ? POLLEN_WORD(x.today) : "–"}</b><em>${x.tomorrow > 0 ? POLLEN_WORD(x.tomorrow) : "–"}</em>`)}</div>` : nothing}
-    ${kpis.length ? html`<div class="wkpi">${kpis.map(k => html`<div><b>${k.v}<small>${k.u}</small></b><span>${k.n}</span></div>`)}</div>` : nothing}`, "wxsky");
+      <div class="pollen" data-sec="pollen">${pollen.map(x => html`<span>${x.name}</span><b class=${x.today >= 1.5 ? "hot" : ""}>${x.today > 0 ? POLLEN_WORD(x.today) : "–"}</b><em>${x.tomorrow > 0 ? POLLEN_WORD(x.tomorrow) : "–"}</em>`)}</div>` : nothing}
+    ${kpis.length ? html`<div class="wkpi">${kpis.map(k => html`<div data-sec=${`kpi-${k.k}`}><b>${k.v}<small>${k.u}</small></b><span>${k.n}</span></div>`)}</div>` : nothing}`, "wxsky");
 }
 
 /* =========================================================== energy =========================================================== */

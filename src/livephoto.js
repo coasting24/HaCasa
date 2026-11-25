@@ -81,6 +81,17 @@ export function liveEditor(p, pop, d, upd, baseUrl) {
   const fx = d.fx || [], setFx = list => upd({ fx: list.length ? list : undefined }), patch = (i, k, v) => setFx(fx.map((x, j) => j === i ? { ...x, [k]: v || undefined } : x));
   const hass = p.hass, label = id => { const r = hass.entities?.[id] || {}, area = hass.areas?.[r.area_id || hass.devices?.[r.device_id]?.area_id]?.name; return (hass.states[id]?.attributes.friendly_name || id) + (area ? ` · ${area}` : ""); };
   const picking = pop.fxPick;
+  // a dot can be dragged to a new spot: it follows the finger, the spot is saved when it is let go
+  const dragSpot = (ev, i) => {
+    ev.preventDefault(); ev.stopPropagation();
+    const dot = ev.currentTarget, box = dot.parentElement, b = box.getBoundingClientRect(); let at = null;
+    const pos = e => [Math.min(100, Math.max(0, (e.clientX - b.left) / b.width * 100)), Math.min(100, Math.max(0, (e.clientY - b.top) / b.height * 100))];
+    const move = e => { at = pos(e); dot.style.left = at[0] + "%"; dot.style.top = at[1] + "%"; dot.classList.add("drag"); };
+    const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
+      box.addEventListener("click", e => e.stopPropagation(), { capture: true, once: true });   // the release is no tap on the photo
+      if (at) p.openPopup({ ...pop, draft: { ...d, fx: fx.map((f, j) => j === i ? { ...f, at: `${at[0].toFixed(1)},${at[1].toFixed(1)}` } : f) } }); };
+    addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+  };
   const place = ev => { if (picking == null) return; const b = ev.currentTarget.getBoundingClientRect(); const x = ((ev.clientX - b.left) / b.width * 100).toFixed(1), y = ((ev.clientY - b.top) / b.height * 100).toFixed(1);
     p.openPopup({ ...pop, draft: { ...d, fx: fx.map((f, j) => j === picking ? { ...f, at: `${x},${y}` } : f) }, fxPick: undefined }); };
   return html`
@@ -89,7 +100,7 @@ export function liveEditor(p, pop, d, upd, baseUrl) {
     <div class="form lfxed">
       ${baseUrl ? html`<div class=${picking != null ? "lfxprev pick" : "lfxprev"} @click=${place}><img src=${baseUrl} alt="">
         ${(c => c ? html`<b class="lfxcov" style=${`left:${c.l}%;top:${c.t}%;width:${c.w}%;height:${c.h}%`}><span>${t("achter de kaarten")}</span></b>` : nothing)(coveredByCards(p, baseUrl))}
-        ${fx.map((f, i) => { const a = spot(f.at); return a ? html`<i class=${i === picking ? "on" : ""} style=${`left:${a[0]}%;top:${a[1]}%`}>${i + 1}</i>` : nothing; })}
+        ${fx.map((f, i) => { const a = spot(f.at); return a ? html`<i class=${i === picking ? "on" : ""} style=${`left:${a[0]}%;top:${a[1]}%`} @pointerdown=${ev => dragSpot(ev, i)}>${i + 1}</i>` : nothing; })}
         ${picking != null ? html`<span class="lfxhint">${t("tik op de plek voor effect {n}", { n: picking + 1 })}</span>` : nothing}</div>` : nothing}
       ${fx.map((x, i) => html`<div class="lfxrow"><b>${i + 1}</b>
         <input type="text" list="hcn-live-ents" .value=${x.entity || ""} placeholder=${t("entiteit")} @change=${e => patch(i, "entity", e.target.value.trim())}>
@@ -121,6 +132,8 @@ export const liveStyles = `
   .popup .lfxprev i{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.6);border:2px solid #fff;color:#fff;font:600 11px/18px -apple-system,system-ui,sans-serif;font-style:normal;text-align:center}
   .popup .lfxprev .lfxcov{position:absolute;pointer-events:none;background:repeating-linear-gradient(135deg,rgba(0,0,0,.5) 0 8px,rgba(0,0,0,.36) 8px 16px);border-top:1px dashed rgba(255,255,255,.5);display:flex;align-items:flex-start;justify-content:center}
   .popup .lfxprev .lfxcov span{margin-top:6px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font:600 11px/1.2 -apple-system,system-ui,sans-serif;letter-spacing:.3px;line-height:1.2}
+  .popup .lfxprev i{cursor:grab;touch-action:none}
+  .popup .lfxprev i.drag{cursor:grabbing;transform:translate(-50%,-50%) scale(1.25)}
   .popup .lfxprev i.on{background:var(--accent, #f0a33a)}
   .popup .lfxhint{position:absolute;left:12px;bottom:12px;padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;line-height:1.3}
   .popup .lfxrow{display:grid;grid-template-columns:22px minmax(0,1.4fr) minmax(140px,1fr) max-content 36px;gap:8px;align-items:center}

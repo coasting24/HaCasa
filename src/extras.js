@@ -3,6 +3,7 @@ import { t, tn, locale, hourLabel } from "./i18n.js";
 import { html, nothing } from "lit";
 import { num, relTime, clock } from "./util.js";
 import { condText, condIcon } from "./cards.js";
+import "./visualizer.js";
 
 /* ---------- persistent notifications (live subscription) ---------- */
 /** Home Assistant sends the full set once ("current"), then only what changed ("added", "updated", "removed"),
@@ -51,8 +52,19 @@ export function keypad(p, pop) {
 }
 
 /* ---------- idle screen ---------- */
+/** the Music Assistant player that plays now, for the music idle screen (config.idleMilk) */
+const playingMA = p => Object.values(p.hass.states).find(s => s.entity_id.startsWith("media_player.") && s.state === "playing" && s.attributes.app_id === "music_assistant" && s.attributes.active_queue) || null;
+
 export function idleScreen(p) {
   const w = p.home?.weather, h = p.home;
+  // music plays on a Music Assistant player: MilkDrop Lite fills the screen, with the track and a small clock
+  const ma = p.config.idleMilk && p.hass.user?.is_admin && !p.config.noMotion && !p.config.perfMode ? playingMA(p) : null;
+  if (ma) { const a = ma.attributes;
+    return html`<div class="idle music" @pointerdown=${() => p.wake()}>
+      <hcn-milk class="saver" .hass=${p.hass} .player=${a.active_queue}></hcn-milk>
+      <div class="imusic"><b>${a.media_title || ""}</b><span>${[a.media_artist, a.friendly_name].filter(Boolean).join(" · ")}</span></div>
+      <div class="iclock small">${clock()}</div>
+    </div>`; }
   const date = new Date().toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" });
   return html`<div class="idle" @pointerdown=${() => p.wake()}>
     <div class="iclock">${clock()}</div>
@@ -76,6 +88,15 @@ export const extraStyles = `
   .kgrid button.on{background:rgba(255,255,255,.4)}
   .klink{display:block;margin:12px auto 0;border:0;background:transparent;color:#fff;opacity:.7;font:inherit;font-size:12px;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
   .idle{position:absolute;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;animation:fadeIn 1.2s ease-out both;user-select:none}
+  .idle.music{background:#000;justify-content:flex-end;padding-bottom:6vh}
+  .idle.music hcn-milk.saver{position:absolute;inset:0;z-index:0;border-radius:0;opacity:0;transition:opacity 1.5s ease}
+  .idle.music hcn-milk.saver[live]{opacity:1}
+  .idle.music hcn-milk.saver canvas{filter:saturate(1.3) blur(.4px)}
+  .idle.music>:not(hcn-milk){position:relative;z-index:1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  .imusic{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;max-width:80vw}
+  .imusic b{font-size:clamp(22px,3.2vw,40px);font-weight:700;letter-spacing:-.5px}
+  .imusic span{font-size:clamp(14px,1.6vw,20px);opacity:.75}
+  .iclock.small{font-size:clamp(28px,4vw,48px);letter-spacing:-1px;opacity:.7;margin-top:8px}
   .iclock{font-size:clamp(72px,16vw,160px);font-weight:700;letter-spacing:-4px;line-height:1;opacity:.9}
   .idate{font-size:18px;font-weight:500;opacity:.7;text-transform:capitalize}
   .iwx{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600;letter-spacing:1px;text-transform:uppercase;opacity:.8;margin-top:14px}
