@@ -74,6 +74,14 @@ export const styles = css`
   /* one row of rooms; the ones that don't fit go under the "+N" pill (#195), "Meer" and search stay put (fitRooms() measures the wrap) */
   .links .rl{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:0 1 auto}
   .links .ovf b{font-weight:700}
+  /* preview of the home photo series */
+  .moodprev{position:absolute;left:50%;bottom:calc(85px + var(--card-h, 180px) + 24px);transform:translateX(-50%);z-index:8;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;padding:8px 10px;border-radius:22px;max-width:calc(100% - 2 * var(--pad))}
+  .moodprev .seg{display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.18)}
+  .moodprev .seg button{border:0;background:none;color:var(--fg-2);font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer}
+  .moodprev .seg button.on{background:rgba(255,255,255,.85);color:#1d1d1f}
+  .moodprev .f{font-size:12px;font-weight:600;color:var(--fg-2);padding:0 4px}
+  .moodprev .f.miss{color:#ffd27a}
+  .moodprev .done{border:0;border-radius:999px;background:rgba(255,255,255,.9);color:#1d1d1f;font:inherit;font-size:13px;font-weight:700;padding:7px 16px;cursor:pointer}
   /* fixed room buttons in the top row (config.navStyle "buttons"): in the flow between the title and the people, wrapping
      downwards; the rest of the row stays on the first line */
   .nav:has(.roomgrid){align-items:flex-start;height:auto;min-height:46px}

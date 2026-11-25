@@ -64,6 +64,18 @@ export function liveLayer(p, room, baseUrl, { noLit = false } = {}) {
     </svg>` : nothing}`;
 }
 
+/** where on the photo (in % of it) the card row lies on this screen: the photo fills the panel like background-size: cover,
+    so a screen rectangle maps back onto it; an effect placed there glows behind the cards and is hardly seen */
+function coveredByCards(p, url) {
+  const size = photoSize(p, url), bg = p.renderRoot?.querySelector(".bg"), strip = p.renderRoot?.querySelector(".strip");
+  if (!size || !bg || !strip) return null;
+  const B = bg.getBoundingClientRect(), S = strip.getBoundingClientRect(); if (!B.width || !S.height) return null;
+  const k = Math.max(B.width / size.w, B.height / size.h), ox = (B.width - size.w * k) / 2, oy = (B.height - size.h * k) / 2;
+  const px = x => Math.min(100, Math.max(0, (x - B.left - ox) / k / size.w * 100)), py = y => Math.min(100, Math.max(0, (y - B.top - oy) / k / size.h * 100));
+  const l = px(Math.max(S.left, B.left)), rr = px(Math.min(S.right, B.right)), t = py(S.top), b = py(Math.min(S.bottom, B.bottom));
+  return rr > l && b > t ? { l, t, w: rr - l, h: b - t } : null;
+}
+
 /** page settings: the lit photo, and the effects with a tap-to-place preview of the photo */
 export function liveEditor(p, pop, d, upd, baseUrl) {
   const fx = d.fx || [], setFx = list => upd({ fx: list.length ? list : undefined }), patch = (i, k, v) => setFx(fx.map((x, j) => j === i ? { ...x, [k]: v || undefined } : x));
@@ -76,6 +88,7 @@ export function liveEditor(p, pop, d, upd, baseUrl) {
     <div class="prow" style="margin-top:18px"><span>${t("Effecten")}</span><b>${t("{n} op de foto", { n: fx.length })}</b></div>
     <div class="form lfxed">
       ${baseUrl ? html`<div class=${picking != null ? "lfxprev pick" : "lfxprev"} @click=${place}><img src=${baseUrl} alt="">
+        ${(c => c ? html`<b class="lfxcov" style=${`left:${c.l}%;top:${c.t}%;width:${c.w}%;height:${c.h}%`}><span>${t("achter de kaarten")}</span></b>` : nothing)(coveredByCards(p, baseUrl))}
         ${fx.map((f, i) => { const a = spot(f.at); return a ? html`<i class=${i === picking ? "on" : ""} style=${`left:${a[0]}%;top:${a[1]}%`}>${i + 1}</i>` : nothing; })}
         ${picking != null ? html`<span class="lfxhint">${t("tik op de plek voor effect {n}", { n: picking + 1 })}</span>` : nothing}</div>` : nothing}
       ${fx.map((x, i) => html`<div class="lfxrow"><b>${i + 1}</b>
@@ -106,6 +119,8 @@ export const liveStyles = `
   .popup .lfxprev img{display:block;max-width:100%;max-height:300px;width:auto;height:auto}
   .popup .lfxprev.pick{cursor:crosshair;outline:2px solid var(--accent, #f0a33a);outline-offset:-2px}
   .popup .lfxprev i{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.6);border:2px solid #fff;color:#fff;font:600 11px/18px -apple-system,system-ui,sans-serif;font-style:normal;text-align:center}
+  .popup .lfxprev .lfxcov{position:absolute;pointer-events:none;background:repeating-linear-gradient(135deg,rgba(0,0,0,.5) 0 8px,rgba(0,0,0,.36) 8px 16px);border-top:1px dashed rgba(255,255,255,.5);display:flex;align-items:flex-start;justify-content:center}
+  .popup .lfxprev .lfxcov span{margin-top:6px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font:600 11px/1.2 -apple-system,system-ui,sans-serif;letter-spacing:.3px;line-height:1.2}
   .popup .lfxprev i.on{background:var(--accent, #f0a33a)}
   .popup .lfxhint{position:absolute;left:12px;bottom:12px;padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;line-height:1.3}
   .popup .lfxrow{display:grid;grid-template-columns:22px minmax(0,1.4fr) minmax(140px,1fr) max-content 36px;gap:8px;align-items:center}

@@ -49,7 +49,7 @@ class HacasaNova extends LitElement {
   static styles = styles;
   static properties = {
     hass: { attribute: false }, narrow: { type: Boolean }, route: { attribute: false }, panel: { attribute: false },
-    config: { state: true }, popup: { state: true }, drawer: { state: true }, edit: { state: true }, editKey: { state: true }, editOrder: { state: true }, editDrag: { state: true }, iconPick: { state: true }, now: { state: true },
+    config: { state: true }, popup: { state: true }, moodPreview: { state: true }, drawer: { state: true }, edit: { state: true }, editKey: { state: true }, editOrder: { state: true }, editDrag: { state: true }, iconPick: { state: true }, now: { state: true },
     draft: { state: true }, saved: { state: true }, roomDrag: { state: true }, ghLatest: { state: true }, stab: { state: true }, attFilter: { state: true }, search: { state: true }, sysInfo: { state: true }, netHist: { state: true }, battEta: { state: true }, notifications: { state: true }, idle: { state: true }, toast: { state: true }, events: { state: true }, templates: { state: true }, navFloor: { state: true }, searchOpen: { state: true }, wx: { state: true }, stripScrolled: { state: true }, lightHist: { state: true }, climateHist: { state: true }, plugHist: { state: true }, plugTimers: { state: true }, sensFilter: { state: true }, sensGroup: { state: true }, pageFilter: { state: true }, pageGroup: { state: true }, energyHist: { state: true }, graphHist: { state: true }, todo: { state: true },
   };
 
@@ -401,13 +401,20 @@ class HacasaNova extends LitElement {
   }
   /** home photos that follow the time of day (sun.sun) and the weather: day-clear, day-rain, dusk, night-clear … in the folder
       from Settings, nearest match first; empty folder setting = off */
-  moodImages() {
-    let dir = (this.config.homeMood || "").trim(); if (!dir) return [];
-    if (!dir.endsWith("/")) dir += "/";
+  /** the time of day and the weather the home photo series is picked by: from sun.sun and the weather entity, or the ones
+      chosen in the preview (moodPreview) */
+  moodNow() {
+    if (this.moodPreview) return { ph: this.moodPreview.ph, wx: this.moodPreview.wx };
     const sun = this.hass.states["sun.sun"], el = sun ? Number(sun.attributes.elevation) : NaN;
     const ph = !sun ? "day" : Number.isFinite(el) ? (el < -6 ? "night" : el < 8 ? (sun.attributes.rising ? "dawn" : "dusk") : "day") : sun.state === "below_horizon" ? "night" : "day";
     const c = this.home.weather?.state || "";
     const wx = /snow/.test(c) ? "snow" : /rain|pour|lightning|hail|exceptional/.test(c) ? "rain" : c === "fog" ? "fog" : /cloud|windy/.test(c) ? "cloudy" : "clear";
+    return { ph, wx };
+  }
+  moodImages() {
+    let dir = (this.moodPreview?.dir ?? this.config.homeMood ?? "").trim(); if (!dir) return [];
+    if (!dir.endsWith("/")) dir += "/";
+    const { ph, wx } = this.moodNow();
     const chain = p => [`${p}-${wx}`, p, ...(wx === "fog" ? [`${p}-cloudy`] : []), `${p}-clear`];
     const names = [...chain(ph), ...(ph === "dawn" || ph === "dusk" ? chain("day") : [])];
     return [...new Set(names)].map(n => `${dir}${n}.jpg`);
@@ -749,6 +756,7 @@ class HacasaNova extends LitElement {
           ${this.searchOpen && !this.settings ? searchBar(this) : nothing}` : nothing}
       </nav>
       ${phone && (this.config.phoneNav !== "top" || this.edit) ? this.renderBottomNav(room, isPage) : nothing}
+      ${this.moodPreview && !room && !isPage ? this.renderMoodPreview() : nothing}
       ${nowPlaying(this, phone)}
       ${keyed(this.settings ? "settings" : this.page || (room ? room.id : "home"), this.settings ? renderSettings(this) : this.page ? renderPage(this, this.page) : room ? this.renderRoom(room) : this.renderHome(h))}
       ${this.hass.connected === false ? html`<div class="offline"><ha-icon icon="mdi:lan-disconnect"></ha-icon>${t("Geen verbinding met Home Assistant")}</div>` : nothing}
@@ -815,6 +823,21 @@ class HacasaNova extends LitElement {
     ovf.querySelectorAll(".dd>a").forEach((a, i) => a.classList.toggle("ovh", !links[i].classList.contains("ovh")));
   }
   /** navigation: one pill per room, or (config.navMode "floors") one per floor with a room dropdown — hover on desktop, tap on touch/mobile */
+  /** preview of the home photo series (from the settings): pick a time of day and a weather and see which photo shows;
+      a missing one falls back like it would for real, and the bar says which file is on screen */
+  renderMoodPreview() {
+    const m = this.moodPreview, set = k => v => { this.moodPreview = { ...m, [k]: v }; };
+    const PH = [["dawn", t("Ochtend")], ["day", t("Dag")], ["dusk", t("Avond")], ["night", t("Nacht")]];
+    const WX = [["clear", t("Helder")], ["cloudy", t("Bewolkt")], ["rain", t("Regen")], ["snow", t("Sneeuw")], ["fog", t("Mist")]];
+    const shown = (this.bgUrl(null) || "").replace(/\?.*$/, "").split("/").pop();
+    const want = `${m.ph}-${m.wx}.jpg`, exact = shown === want || (m.wx === "clear" && shown === `${m.ph}.jpg`);
+    return html`<div class="moodprev pill">
+      <div class="seg">${PH.map(([v, l]) => html`<button class=${m.ph === v ? "on" : ""} @click=${() => set("ph")(v)}>${l}</button>`)}</div>
+      <div class="seg">${WX.map(([v, l]) => html`<button class=${m.wx === v ? "on" : ""} @click=${() => set("wx")(v)}>${l}</button>`)}</div>
+      <span class=${exact ? "f" : "f miss"}>${shown || "–"}${exact ? nothing : html` · ${t("{f} ontbreekt", { f: want })}`}</span>
+      <button class="done" @click=${() => { this.moodPreview = null; }}>${t("Klaar")}</button>
+    </div>`;
+  }
   /** fixed room buttons (config.navStyle "buttons"): on a tablet or computer, rooms mode (not floors) */
   roomButtons() { return this.config.navStyle === "buttons" && this.config.navMode !== "floors" && !matchMedia("(max-width:900px)").matches; }
   /** every room as its own button in the top row, between the title and the people, wrapping into more rows below it,
