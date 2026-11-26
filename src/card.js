@@ -77,4 +77,4 @@ class HacasaNovaCardEditor extends HTMLElement {
 if (!customElements.get(TAG + "-card-editor")) customElements.define(TAG + "-card-editor", HacasaNovaCardEditor);
 if (!customElements.get(TAG + "-card")) customElements.define(TAG + "-card", HacasaNovaCard);
 window.customCards = window.customCards || [];
-if (!window.customCards.some(c => c.type === TAG + "-card")) window.customCards.push({ type: TAG + "-card", name: "HaCasa Nova" + (SUFFIX ? " (dev)" : ""), description: "The HaCasa Nova home panel inside a dashboard. Use it as the only card in a view of type panel.", preview: false });
+if (!window.customCards.some(c => c.type === TAG + "-card")) window.customCards.push({ type: TAG + "-card", name: "HaCasa Nova" + (SUFFIX ? ` (${SUFFIX.slice(1)})` : ""), description: "The HaCasa Nova home panel inside a dashboard. Use it as the only card in a view of type panel.", preview: false });

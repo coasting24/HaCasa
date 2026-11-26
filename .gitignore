@@ -13,4 +13,5 @@ REDDIT_POST.md
 # local builds (npm run dev / watch; dist/ is only committed with a release) and the per-machine deploy target
 dev/build/
 dist-dev/
+dist-fork/
 deploy.local.json

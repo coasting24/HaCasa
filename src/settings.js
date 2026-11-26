@@ -14,7 +14,7 @@ import { iconInput } from "./iconpicker.js";
 import { solarSettings } from "./cards2.js";
 import { timerScriptId, installTimerScript } from "./plugtimer.js";
 
-export const USER_DATA_KEY = "hacasa_nova" + (SUFFIX ? "_dev" : "");
+export const USER_DATA_KEY = "hacasa_nova" + SUFFIX.replace("-", "_");   // hacasa_nova, hacasa_nova_dev, hacasa_nova_fork
 
 // carried over once when the key is empty: pre-release names, or (dev build) a copy of the real settings
 const OLD_USER_DATA_KEYS = SUFFIX ? ["hacasa_nova"] : ["kamer_panel", "homio_panel"];

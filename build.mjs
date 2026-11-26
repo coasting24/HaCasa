@@ -6,17 +6,21 @@
 // `node build.mjs --local` (npm run dev) and `--watch` build into dev/build/ only (git-ignored), for working on the code.
 // `node build.mjs --dev` builds the dev variant into dist-dev/hacasa-nova-dev.js: element <hacasa-nova-dev>,
 // card custom:hacasa-nova-dev-card and its own settings key, so it runs next to the HACS install.
+// `node build.mjs --fork` builds this fork's own variant into dist-fork/hacasa-nova-fork.js: element <hacasa-nova-fork>,
+// card custom:hacasa-nova-fork-card, settings key hacasa_nova_fork, so it runs next to both the HACS install and a dev
+// build of the original.
 import * as esbuild from "esbuild";
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const watch = process.argv.includes("--watch");
-const dev = process.argv.includes("--dev");
+const variant = process.argv.includes("--dev") ? "dev" : process.argv.includes("--fork") ? "fork" : "";   // a variant runs next to the HACS install
+const dev = !!variant;
 const local = watch || process.argv.includes("--local");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-const version = pkg.version + (dev ? "-dev" : "");
-const outdir = dev ? "dist-dev" : local ? "dev/build" : "dist";
-const name = dev ? "hacasa-nova-dev" : "hacasa-nova";
+const version = pkg.version + (variant ? `-${variant}` : "");
+const outdir = variant ? `dist-${variant}` : local ? "dev/build" : "dist";
+const name = variant ? `hacasa-nova-${variant}` : "hacasa-nova";
 mkdirSync(outdir, { recursive: true });
 mkdirSync("dev/build", { recursive: true });
 
@@ -98,7 +102,7 @@ const stamp = {
 
 const ctx = await esbuild.context({
   entryPoints: ["src/panel.js"],
-  define: { __VERSION__: JSON.stringify(version), __SUFFIX__: JSON.stringify(dev ? "-dev" : "") },
+  define: { __VERSION__: JSON.stringify(version), __SUFFIX__: JSON.stringify(variant ? `-${variant}` : "") },
   bundle: true,
   format: "esm",
   target: "es2020",
