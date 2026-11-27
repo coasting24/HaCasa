@@ -2,6 +2,7 @@
 // page per area, straight from the area/device/entity registries.
 import { liveLayer } from "./livephoto.js";
 import { warningItem } from "./outside.js";
+import { habitItems } from "./habits.js";
 import { situationOf, orderBySituation, NIGHT_KEYS, nightAlert } from "./situation.js";
 import { weatherLayer } from "./bgweather.js";
 import { blurredBg, edgeBg } from "./perf.js";
@@ -950,6 +951,7 @@ class HacasaNova extends LitElement {
     for (const m of modeList(this).filter(m => m.on)) items.push({ k: "modes", uicon: m.icon || "mdi:account-switch-outline", title: m.label, text: t("Actief") });
     items.push(...this.applianceItems(this.rooms.flatMap(r => r.ents.appliances)));
     const su = selfUpdate(this);   // a newer HaCasa Nova: first in the row, tap = what's new (+ install via HACS)
+    items.unshift(...habitItems(this));   // what you usually do about now (config.habits)
     { const wi = warningItem(this); if (wi) items.unshift(wi); }   // an official weather warning comes first
     if (su) items.unshift({ k: "update", icon: "mdi:arrow-up-circle-outline", title: t("HaCasa Nova {v}", { v: String(su.to).replace(/^v/, "") }), text: t("update beschikbaar · tik voor wat er nieuw is"), tap: su.open });
     // with the situations on (config.situations) the cards that matter now come first: morning, evening, night, away
