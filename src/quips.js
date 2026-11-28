@@ -1,6 +1,6 @@
 // "Persoonlijkheid" (config.personality): HaCasa comments on the house in the ticker under the greeting, in the tone of the
 // weather card's one-liners: "Drei Fenster offen bei 4°. Mutig." Two sets per language: "funny" (may swear a little) and
-// "mild" (the same jokes, clean). German and English here; any other panel language gets the English lines, and
+// "mild" (the same jokes, clean). Dutch (checked by a native speaker), German and English here; any other panel language gets the English lines, and
 // config.personalityLang = "en" keeps them English everywhere. Only situations worth a remark make a line, at most two
 // at once, so the ticker stays the ticker; the wording changes every ten minutes, not on every render.
 import { isOn, num } from "./util.js";
@@ -36,6 +36,32 @@ const Q = {
       mild: ["Alles ruhig. Verdächtig ruhig.", "Nichts los. Das Haus langweilt sich.", "Alles zu, alles aus. Langweilig, aber sicher."] },
     forgottenLights: { funny: ["{room}: Das Licht brennt, aber seit {m} Minuten bewegt sich nichts.", "{room}: Licht an, niemand da. Seit {m} Minuten.", "{room} ist seit {m} Minuten leer. Das Licht hat's nicht gemerkt."],
       mild: ["{room}: Das Licht brennt, aber seit {m} Minuten bewegt sich nichts.", "{room}: Licht an, niemand da. Seit {m} Minuten.", "{room} ist seit {m} Minuten leer. Das Licht hat's nicht gemerkt."] },
+  },
+  nl: {
+    coldWindows: { funny: ["{n} ramen open bij {t}°. Stoer.", "Buiten {t}°, {n} ramen open. Stook je voor de buren?", "{t}° en {n} ramen open. De verwarming huilt zachtjes."],
+      mild: ["{n} ramen open bij {t}°. Stoer.", "Buiten {t}°, {n} ramen open. Stook je voor de buren?", "{t}° en {n} ramen open. De verwarming zucht."] },
+    emptyLights: { funny: ["Niemand thuis, maar {n} lampen houden de wacht.", "Iedereen weg. {n} lampen geven toch een feestje.", "Niemand hier, {n} lampen aan. Voor wie in godsnaam?"],
+      mild: ["Niemand thuis, maar {n} lampen houden de wacht.", "Iedereen weg. {n} lampen geven toch een feestje.", "Niemand hier, {n} lampen aan. Voor wie eigenlijk?"] },
+    manyLights: { funny: ["{n} lampen aan. De energieleverancier zegt dankjewel.", "{n} lampen tegelijk. Landingsbaan of woonkamer?", "{n} lampen aan. Ze zien jullie vanaf de maan."],
+      mild: ["{n} lampen aan. De energieleverancier zegt dankjewel.", "{n} lampen tegelijk. Landingsbaan of woonkamer?", "{n} lampen aan. Ze zien jullie vanaf de maan."] },
+    applianceWaiting: { funny: ["{name} is al {m} minuten klaar en wacht op je.", "{name}: {m} minuten geleden klaar. De was beraamt wraak.", "{name} wacht al {m} minuten. Uitruimen zou verdomd fijn zijn."],
+      mild: ["{name} is al {m} minuten klaar en wacht op je.", "{name}: {m} minuten geleden klaar. Niemand komt.", "{name} wacht al {m} minuten. Uitruimen zou fijn zijn."] },
+    applianceRunning: { funny: ["{name} is aan het werk. Jij niet.", "{name} zwoegt. Iemand moet het doen.", "{name} draait. Stil, hij concentreert zich."],
+      mild: ["{name} is aan het werk. Jij niet.", "{name} zwoegt. Iemand moet het doen.", "{name} draait. Stil, hij concentreert zich."] },
+    doorOpen: { funny: ["{name} staat al {m} minuten open. Verwacht je iemand?", "{name} staat {m} minuten open. Tocht het?", "{name}: {m} minuten open. Doe die verdomde deur dicht."],
+      mild: ["{name} staat al {m} minuten open. Verwacht je iemand?", "{name} staat {m} minuten open. Tocht het?", "{name}: {m} minuten open. Deur dicht, alsjeblieft."] },
+    powerHigh: { funny: ["Nu {w} W. Wie staat er te föhnen?", "{w} W. De meter draait als een ventilator.", "{w} W. Gaat hier zo een raket de lucht in?"],
+      mild: ["Nu {w} W. Wie staat er te föhnen?", "{w} W. De meter draait als een ventilator.", "{w} W. Gaat hier zo een raket de lucht in?"] },
+    hotInside: { funny: ["{t}° binnen. De sauna is open.", "{t}° in huis. Nog even opgieten en klaar.", "{t}° binnen. Zweten telt ook als sporten."],
+      mild: ["{t}° binnen. De sauna is open.", "{t}° in huis. Nog even opgieten en klaar.", "{t}° binnen. Zweten telt ook als sporten."] },
+    coldInside: { funny: ["{t}° binnen. Pinguïns voelen zich hier thuis.", "Maar {t}° in huis. Trui aan.", "{t}° binnen. Verdomd fris hier."],
+      mild: ["{t}° binnen. Pinguïns voelen zich hier thuis.", "Maar {t}° in huis. Trui aan.", "{t}° binnen. Best fris hier."] },
+    lateLights: { funny: ["Het is {time}. {n} lampen zijn nog wakker. Jij ook?", "{time}, {n} lampen aan. Naar bed jij.", "{time}. Het huis wil slapen, {n} lampen niet."],
+      mild: ["Het is {time}. {n} lampen zijn nog wakker. Jij ook?", "{time}, {n} lampen aan. Bedtijd.", "{time}. Het huis wil slapen, {n} lampen niet."] },
+    calm: { funny: ["Alles rustig. Verdacht rustig.", "Niks aan de hand. Het huis verveelt zich.", "Alles dicht, alles uit. Saai, maar veilig."],
+      mild: ["Alles rustig. Verdacht rustig.", "Niks aan de hand. Het huis verveelt zich.", "Alles dicht, alles uit. Saai, maar veilig."] },
+    forgottenLights: { funny: ["{room}: het licht brandt, maar al {m} minuten beweegt er niks.", "{room}: licht aan, niemand thuis. Al {m} minuten.", "{room} is al {m} minuten leeg. Het licht heeft het niet door."],
+      mild: ["{room}: het licht brandt, maar al {m} minuten beweegt er niks.", "{room}: licht aan, niemand thuis. Al {m} minuten.", "{room} is al {m} minuten leeg. Het licht heeft het niet door."] },
   },
   en: {
     coldWindows: { funny: ["{n} windows open at {t}°. Brave.", "{t}° outside, {n} windows open. Heating for the neighbours?", "{t}° and {n} windows open. The heating is quietly crying."],
