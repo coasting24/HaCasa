@@ -501,6 +501,7 @@ export const styles = css`
   .card.group .gtiles{display:flex;gap:6px;margin-top:10px;white-space:normal;overflow:visible}
   .card.group .gtiles button{flex:1;min-width:0;height:52px;border:1px solid var(--line);border-radius:var(--r-sm);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;display:grid;place-items:center;gap:3px;padding:0 4px;align-content:center}
   .card.group .gtiles button img.ico{width:20px;height:20px}
+  .card.group .gtiles button ha-icon{--mdc-icon-size:20px;display:flex}   /* an icon picked in the member's own card settings */
   /* more than five: every member in a row that scrolls sideways, the next tile peeking in as the hint */
   .card.group .gtiles.more{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:14px;margin-bottom:-14px;-webkit-mask:linear-gradient(90deg,#000 calc(100% - 28px),transparent),linear-gradient(#000 calc(100% - 14px),transparent 0);-webkit-mask-composite:source-in;mask-composite:intersect}   /* the extra 14 px below the tiles hold a scrollbar some browsers draw anyway (macOS, Safari); the mask hides it */
   .card.group .gtiles.more::-webkit-scrollbar{display:none}
@@ -512,6 +513,8 @@ export const styles = css`
   .card.group .gtiles.sz-l button{height:80px}
   .card.group .gtiles.sz-m button img.ico{width:24px;height:24px}
   .card.group .gtiles.sz-l button img.ico{width:28px;height:28px}
+  .card.group .gtiles.sz-m button ha-icon{--mdc-icon-size:24px}
+  .card.group .gtiles.sz-l button ha-icon{--mdc-icon-size:28px}
   .card.group .gtiles button.on{background:rgba(255,255,255,.9);color:#1d1d1f}
   .card.group .gtiles button.on img.ico{filter:invert(1)}
   .card.group .gtiles button small{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;text-align:center}   /* a long name takes a second line instead of being cut */
@@ -523,6 +526,7 @@ export const styles = css`
   .card.group .glist div.on{color:#fff}
   .card.group .glist div.on i{background:#fff;box-shadow:0 0 8px rgba(255,255,255,.7)}
   .card.group .glist div img.ico{width:16px;height:16px;opacity:.9;flex:none}
+  .card.group .glist div ha-icon{--mdc-icon-size:16px;opacity:.9;flex:none;display:flex}
   .card.group .glist div span{overflow:hidden;text-overflow:ellipsis}
   .card.group .glist div b{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fg-3);flex:none}
   .card.group .glist div.on b{color:#fff}
@@ -533,6 +537,7 @@ export const styles = css`
   .card.group.lane .gtiles{margin:6px 0 10px}
   .card.group.lane .gtiles button{height:calc(40 * var(--u));gap:2px}
   .card.group.lane .gtiles button img.ico{width:18px;height:18px}
+  .card.group.lane .gtiles button ha-icon{--mdc-icon-size:18px}
   .card.group.lane .gtiles:not(.sz-m):not(.sz-l) button small{-webkit-line-clamp:1;line-clamp:1;white-space:nowrap}   /* S above a lane: no room for two lines */
   .card.group.lane .gtiles.sz-m button{height:calc(54 * var(--u))}
   .card.group.lane .gtiles.sz-l button{height:calc(62 * var(--u))}

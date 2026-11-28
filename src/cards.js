@@ -826,6 +826,8 @@ export function weatherCard(p, w) {
 /* ---------- group card: user-defined set of lights (kind "light") or switches / fans / plugs (kind "plug") ---------- */
 const svcFor = id => id.split(".")[0] === "input_boolean" ? "input_boolean" : id.split(".")[0] === "light" ? "light" : id.split(".")[0] === "fan" ? "fan" : "switch";
 const memberIcon = x => x.id.startsWith("light.") ? lightIcon(x.s) : x.id.startsWith("fan.") ? "fan" : "plug";
+/** a member's icon in a group: the one picked in its own card settings, else our thin-line icon for its kind */
+const memberIco = (p, x) => uico(cardCfg(p, x.id).icon, null, memberIcon(x));
 /** "light" (every member a light: brightness steps and colours on the card) or "plug" (switches, plugs, fans); groups made before the split are told apart by their members */
 export const groupKind = g => g.kind || ((g.members || []).length && g.members.every(id => id.startsWith("light.")) ? "light" : "plug");
 /** members as [{ id, s, on, name }] */
@@ -874,8 +876,8 @@ export function groupCard(p, g0) {
     <div class="c">${ovr(p, id, "state") ?? (style === "count" ? (kind === "light" ? t("Lampen") : t("Stekkers")) : any ? t("{n} van {m} aan", { n: on, m: m.length }) : t("Alles uit"))}</div>
     <div class="n">${cfg.name || g.name}</div>
     ${style === "count" ? html`<div class="s big">${on}<small>/ ${m.length} ${t("aan")}</small></div>`
-      : style === "list" ? html`<div class=${classMap({ s: true, glist: true, more: m.length > 4 })} @pointerdown=${ev => m.length > 4 && ev.stopPropagation()} @wheel=${listWheel}>${m.map(x => html`<div class=${classMap({ on: x.on })}><i></i>${ico(null, memberIcon(x))}<span>${x.name}</span><b>${x.on ? t("Aan") : t("Uit")}</b></div>`)}</div>`
-      : html`<div class=${classMap({ s: true, gtiles: true, ["sz-" + size]: size !== "s", more: m.length > TILES_PER[size] })} @click=${ev => ev.stopPropagation()} @pointerdown=${rowDrag}>${m.map(x => html`<button class=${classMap({ on: x.on })} title=${x.name} @click=${toggleOne(x)}>${ico(null, memberIcon(x))}<small>${x.name}</small></button>`)}</div>`}
+      : style === "list" ? html`<div class=${classMap({ s: true, glist: true, more: m.length > 4 })} @pointerdown=${ev => m.length > 4 && ev.stopPropagation()} @wheel=${listWheel}>${m.map(x => html`<div class=${classMap({ on: x.on })}><i></i>${memberIco(p, x)}<span>${x.name}</span><b>${x.on ? t("Aan") : t("Uit")}</b></div>`)}</div>`
+      : html`<div class=${classMap({ s: true, gtiles: true, ["sz-" + size]: size !== "s", more: m.length > TILES_PER[size] })} @click=${ev => ev.stopPropagation()} @pointerdown=${rowDrag}>${m.map(x => html`<button class=${classMap({ on: x.on })} title=${x.name} @click=${toggleOne(x)}>${memberIco(p, x)}<small>${x.name}</small></button>`)}</div>`}
     ${lane}${track}${customActions(p, id, ids)}
   </div>`;
 }
