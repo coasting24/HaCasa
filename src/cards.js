@@ -839,6 +839,8 @@ const groupLightState = m => {
   const first = lit.find(x => x.rgb) || lit.find(x => x.kelvin != null) || lit[0];
   return { on: true, pct: Math.round(lit.reduce((a, x) => a + x.pct, 0) / lit.length), rgb: first.rgb, kelvin: first.kelvin, ctWord: first.ctWord };
 };
+/** tile size of a group card (its definition's "size"): how many tiles fit side by side before the row scrolls */
+const TILES_PER = { s: 5, m: 3, l: 2 };
 /** more members than fit: the tile row scrolls sideways. Touch and trackpads scroll it natively; a mouse drags it here, so
     the card row behind stays put and the tile under the pointer is not switched when the drag ends */
 function rowDrag(ev) {
@@ -860,7 +862,7 @@ export function groupCard(p, g0) {
   const toggleOne = x => ev => { ev.stopPropagation(); if (Date.now() - (ev.currentTarget.parentElement.__dragged || 0) < 300) return; p.call(svcFor(x.id), "toggle", { entity_id: x.id }); };
   const all = () => { for (const x of m) p.call(svcFor(x.id), any ? "turn_off" : "turn_on", { entity_id: x.id }); };
   const popup = () => p.openPopup({ type: "group", g });
-  const style = cfg.style || g.style || "tiles", ids = m.map(x => x.id);
+  const style = cfg.style || g.style || "tiles", ids = m.map(x => x.id), size = TILES_PER[g.size] ? g.size : "s";
   const foot = ovr(p, id, "foot");
   // bottom lane: a template, else (light groups) the light card's steps / colours aimed at every member, else the count style's track
   const lane = foot != null ? html`<div class="lbl"><span>${foot}</span></div>`
@@ -873,7 +875,7 @@ export function groupCard(p, g0) {
     <div class="n">${cfg.name || g.name}</div>
     ${style === "count" ? html`<div class="s big">${on}<small>/ ${m.length} ${t("aan")}</small></div>`
       : style === "list" ? html`<div class=${classMap({ s: true, glist: true, more: m.length > 4 })} @pointerdown=${ev => m.length > 4 && ev.stopPropagation()} @wheel=${listWheel}>${m.map(x => html`<div class=${classMap({ on: x.on })}><i></i>${ico(null, memberIcon(x))}<span>${x.name}</span><b>${x.on ? t("Aan") : t("Uit")}</b></div>`)}</div>`
-      : html`<div class=${classMap({ s: true, gtiles: true, more: m.length > 5 })} @click=${ev => ev.stopPropagation()} @pointerdown=${rowDrag}>${m.map(x => html`<button class=${classMap({ on: x.on })} title=${x.name} @click=${toggleOne(x)}>${ico(null, memberIcon(x))}<small>${x.name}</small></button>`)}</div>`}
+      : html`<div class=${classMap({ s: true, gtiles: true, ["sz-" + size]: size !== "s", more: m.length > TILES_PER[size] })} @click=${ev => ev.stopPropagation()} @pointerdown=${rowDrag}>${m.map(x => html`<button class=${classMap({ on: x.on })} title=${x.name} @click=${toggleOne(x)}>${ico(null, memberIcon(x))}<small>${x.name}</small></button>`)}</div>`}
     ${lane}${track}${customActions(p, id, ids)}
   </div>`;
 }

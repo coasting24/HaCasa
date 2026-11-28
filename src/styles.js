@@ -505,9 +505,18 @@ export const styles = css`
   .card.group .gtiles.more{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:14px;margin-bottom:-14px;-webkit-mask:linear-gradient(90deg,#000 calc(100% - 28px),transparent),linear-gradient(#000 calc(100% - 14px),transparent 0);-webkit-mask-composite:source-in;mask-composite:intersect}   /* the extra 14 px below the tiles hold a scrollbar some browsers draw anyway (macOS, Safari); the mask hides it */
   .card.group .gtiles.more::-webkit-scrollbar{display:none}
   .card.group .gtiles.more button{flex:0 0 calc((100% - 4 * 6px) / 4.5);scroll-snap-align:start}
+  /* tile sizes M and L (group setting): fewer, bigger tiles; the name may take two lines instead of being cut */
+  .card.group .gtiles.sz-m.more button{flex-basis:calc((100% - 2 * 6px) / 3.4)}
+  .card.group .gtiles.sz-l.more button{flex-basis:calc((100% - 1 * 6px) / 2.3)}
+  .card.group .gtiles.sz-m button{height:66px}
+  .card.group .gtiles.sz-l button{height:80px}
+  .card.group .gtiles.sz-m button img.ico{width:24px;height:24px}
+  .card.group .gtiles.sz-l button img.ico{width:28px;height:28px}
   .card.group .gtiles button.on{background:rgba(255,255,255,.9);color:#1d1d1f}
   .card.group .gtiles button.on img.ico{filter:invert(1)}
-  .card.group .gtiles button small{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+  .card.group .gtiles button small{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;text-align:center}   /* a long name takes a second line instead of being cut */
+  .card.group .gtiles.sz-m button small,.card.group .gtiles.sz-l button small{font-size:10px;letter-spacing:.6px}
+  .card.group .gtiles.sz-l button small{font-size:11px}
   .card.group .glist{white-space:normal;display:flex;flex-direction:column;gap:6px;margin-top:8px;overflow:hidden}
   .card.group .glist div{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--fg-2);white-space:nowrap;min-width:0}
   .card.group .glist div i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);flex:none}
@@ -524,6 +533,9 @@ export const styles = css`
   .card.group.lane .gtiles{margin:6px 0 10px}
   .card.group.lane .gtiles button{height:calc(40 * var(--u));gap:2px}
   .card.group.lane .gtiles button img.ico{width:18px;height:18px}
+  .card.group.lane .gtiles:not(.sz-m):not(.sz-l) button small{-webkit-line-clamp:1;line-clamp:1;white-space:nowrap}   /* S above a lane: no room for two lines */
+  .card.group.lane .gtiles.sz-m button{height:calc(54 * var(--u))}
+  .card.group.lane .gtiles.sz-l button{height:calc(62 * var(--u))}
   .card.group.lane .glist{gap:3px;margin:4px 0 10px}
   .card.group.lane .gtiles.more{margin-bottom:-4px}   /* the lane gap minus the hidden scrollbar room */
   .card.group.lane .s.big{margin-bottom:10px}
@@ -992,7 +1004,12 @@ export const styles = css`
     .card.scenes .s button{height:40px}
     .card.scenes .s button small{display:none}
     .card.group .gtiles button{height:40px}
-    .card.group .gtiles button small{display:none}
+    .card.group .gtiles.sz-m button{height:46px}
+    .card.group .gtiles.sz-l button{height:54px}
+    .card.group.lane .gtiles.sz-m button,.card.group.lane .gtiles.sz-l button{height:calc(40 * var(--u))}   /* with a lane below there is only room for the S height */
+    .card.group.lane .gtiles button small{display:none}
+    .card.group .gtiles:not(.sz-l) button small{display:none}   /* phones: names only on L tiles, the others are too narrow */
+    .card.group .gtiles.sz-l button small{font-size:9px;letter-spacing:.4px}
     .card.group .glist{gap:3px;margin-top:4px}
     .card.group .glist div{font-size:11px}
     .card.group .lbl.track>span{margin-bottom:5px}
