@@ -235,7 +235,7 @@ export const styles = css`
   /* ===== card strip ===== */
   /* room above and below the cards for their drop shadow (0 12px 32px, plus the 3px hover lift) and 32px left of the first one: a scroll container clips both axes.
      The extra padding is taken off "bottom" and "left", so the cards stay where they were; the strip itself lets clicks through, only the cards catch them */
-  .strip{position:absolute;left:calc(var(--pad) - 32px);right:0;bottom:calc(85px - 42px);display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:26px 0 48px 32px;scroll-padding-left:32px;pointer-events:none}
+  .strip{position:absolute;left:calc(var(--pad) - 32px);right:0;bottom:calc(85px - 42px - 64px);display:flex;gap:var(--card-gap);overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding:26px 0 112px 32px;scroll-padding-left:32px;pointer-events:none}
   .strip>*{pointer-events:auto}
   /* touch screens: iOS Safari does not pan a scroller that has pointer-events:none, even where its cards catch the
      touch (the row stood still on iPad). There the strip takes touches itself; a tap on its empty padding is handed on
@@ -243,6 +243,8 @@ export const styles = css`
   @media (any-pointer:coarse){ .strip{pointer-events:auto} }
   @media (pointer:coarse){ .strip{scroll-snap-type:x proximity} }
   .strip::-webkit-scrollbar{display:none}
+  /* some browsers draw the scrollbar anyway (seen on macOS): the strip reaches 64px further down, past the panel's bottom edge, so a bar
+     drawn there is clipped by the panel (overflow:hidden) instead of running under the cards */
   /* soft edges, as the original: right always, left once scrolled (strength eased in panel.js). Real fading: cards crossing an edge turn see-through there (the gradient --g is built per card by _fadeStrip) instead of a dark overlay */
   .strip>[data-fm],.strip>*>[data-fm]{-webkit-mask-image:var(--g);mask-image:var(--g);--o:64px;-webkit-mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));mask-size:calc(100% + 2 * var(--o)) calc(100% + 2 * var(--o));-webkit-mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));mask-position:calc(-1 * var(--o)) calc(-1 * var(--o));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-clip:no-clip;mask-clip:no-clip}
   .strip::after{content:"";flex:none;width:var(--pad)}
@@ -499,6 +501,10 @@ export const styles = css`
   .card.group .gtiles{display:flex;gap:6px;margin-top:10px;white-space:normal;overflow:visible}
   .card.group .gtiles button{flex:1;min-width:0;height:52px;border:1px solid var(--line);border-radius:var(--r-sm);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;display:grid;place-items:center;gap:3px;padding:0 4px;align-content:center}
   .card.group .gtiles button img.ico{width:20px;height:20px}
+  /* more than five: every member in a row that scrolls sideways, the next tile peeking in as the hint */
+  .card.group .gtiles.more{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:14px;margin-bottom:-14px;-webkit-mask:linear-gradient(90deg,#000 calc(100% - 28px),transparent),linear-gradient(#000 calc(100% - 14px),transparent 0);-webkit-mask-composite:source-in;mask-composite:intersect}   /* the extra 14 px below the tiles hold a scrollbar some browsers draw anyway (macOS, Safari); the mask hides it */
+  .card.group .gtiles.more::-webkit-scrollbar{display:none}
+  .card.group .gtiles.more button{flex:0 0 calc((100% - 4 * 6px) / 4.5);scroll-snap-align:start}
   .card.group .gtiles button.on{background:rgba(255,255,255,.9);color:#1d1d1f}
   .card.group .gtiles button.on img.ico{filter:invert(1)}
   .card.group .gtiles button small{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
@@ -511,11 +517,15 @@ export const styles = css`
   .card.group .glist div span{overflow:hidden;text-overflow:ellipsis}
   .card.group .glist div b{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fg-3);flex:none}
   .card.group .glist div.on b{color:#fff}
+  /* more than four: the list scrolls; its height stays that of four rows */
+  .card.group .glist.more{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;max-height:calc(4 * 1.3em + 3 * 6px);padding-right:14px;margin-right:-14px;-webkit-mask:linear-gradient(#000 calc(100% - 14px),transparent),linear-gradient(90deg,#000 calc(100% - 14px),transparent 0);-webkit-mask-composite:source-in;mask-composite:intersect}
+  .card.group .glist.more::-webkit-scrollbar{display:none}
   /* a bottom lane (brightness steps, colours) under the members: compact tiles / rows and a guaranteed gap */
   .card.group.lane .gtiles{margin:6px 0 10px}
   .card.group.lane .gtiles button{height:calc(40 * var(--u));gap:2px}
   .card.group.lane .gtiles button img.ico{width:18px;height:18px}
   .card.group.lane .glist{gap:3px;margin:4px 0 10px}
+  .card.group.lane .gtiles.more{margin-bottom:-4px}   /* the lane gap minus the hidden scrollbar room */
   .card.group.lane .s.big{margin-bottom:10px}
   .card.group.count .s.big small{font-size:17px;font-weight:600;letter-spacing:0;color:var(--fg-3);margin-left:3px}
   .card.group .lbl.track{display:block;overflow:visible}

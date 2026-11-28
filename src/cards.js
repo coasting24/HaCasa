@@ -839,10 +839,25 @@ const groupLightState = m => {
   const first = lit.find(x => x.rgb) || lit.find(x => x.kelvin != null) || lit[0];
   return { on: true, pct: Math.round(lit.reduce((a, x) => a + x.pct, 0) / lit.length), rgb: first.rgb, kelvin: first.kelvin, ctWord: first.ctWord };
 };
+/** more members than fit: the tile row scrolls sideways. Touch and trackpads scroll it natively; a mouse drags it here, so
+    the card row behind stays put and the tile under the pointer is not switched when the drag ends */
+function rowDrag(ev) {
+  const el = ev.currentTarget; if (el.scrollWidth <= el.clientWidth + 1) return;
+  ev.stopPropagation(); if (ev.pointerType !== "mouse") return;
+  const x0 = ev.clientX, s0 = el.scrollLeft; let moved = false; el.style.scrollSnapType = "none";
+  const move = e => { const dx = e.clientX - x0; if (Math.abs(dx) > 4) moved = true; el.scrollLeft = s0 - dx; };
+  const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); el.style.scrollSnapType = ""; if (moved) el.__dragged = Date.now(); };
+  addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+}
+/** the wheel over a list that can still scroll that way scrolls the list, not the card row (which turns the wheel sideways) */
+function listWheel(ev) {
+  const el = ev.currentTarget, d = ev.deltaY;
+  if ((d > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1) || (d < 0 && el.scrollTop > 0)) ev.stopPropagation();
+}
 export function groupCard(p, g0) {
   const g = p._preview?.id === "group:" + g0.id && p._preview.gd ? p._preview.gd : g0;   // the card form edits the definition itself; its preview shows the draft
   const id = "group:" + g.id, cfg = cardCfg(p, id), m = groupMembers(p, g), on = m.filter(x => x.on).length, any = on > 0, kind = groupKind(g);
-  const toggleOne = x => ev => { ev.stopPropagation(); p.call(svcFor(x.id), "toggle", { entity_id: x.id }); };
+  const toggleOne = x => ev => { ev.stopPropagation(); if (Date.now() - (ev.currentTarget.parentElement.__dragged || 0) < 300) return; p.call(svcFor(x.id), "toggle", { entity_id: x.id }); };
   const all = () => { for (const x of m) p.call(svcFor(x.id), any ? "turn_off" : "turn_on", { entity_id: x.id }); };
   const popup = () => p.openPopup({ type: "group", g });
   const style = cfg.style || g.style || "tiles", ids = m.map(x => x.id);
@@ -857,8 +872,8 @@ export function groupCard(p, g0) {
     <div class="c">${ovr(p, id, "state") ?? (style === "count" ? (kind === "light" ? t("Lampen") : t("Stekkers")) : any ? t("{n} van {m} aan", { n: on, m: m.length }) : t("Alles uit"))}</div>
     <div class="n">${cfg.name || g.name}</div>
     ${style === "count" ? html`<div class="s big">${on}<small>/ ${m.length} ${t("aan")}</small></div>`
-      : style === "list" ? html`<div class="s glist">${m.slice(0, 4).map(x => html`<div class=${classMap({ on: x.on })}><i></i>${ico(null, memberIcon(x))}<span>${x.name}</span><b>${x.on ? t("Aan") : t("Uit")}</b></div>`)}</div>`
-      : html`<div class="s gtiles" @click=${ev => ev.stopPropagation()}>${m.slice(0, 5).map(x => html`<button class=${classMap({ on: x.on })} title=${x.name} @click=${toggleOne(x)}>${ico(null, memberIcon(x))}<small>${x.name}</small></button>`)}</div>`}
+      : style === "list" ? html`<div class=${classMap({ s: true, glist: true, more: m.length > 4 })} @pointerdown=${ev => m.length > 4 && ev.stopPropagation()} @wheel=${listWheel}>${m.map(x => html`<div class=${classMap({ on: x.on })}><i></i>${ico(null, memberIcon(x))}<span>${x.name}</span><b>${x.on ? t("Aan") : t("Uit")}</b></div>`)}</div>`
+      : html`<div class=${classMap({ s: true, gtiles: true, more: m.length > 5 })} @click=${ev => ev.stopPropagation()} @pointerdown=${rowDrag}>${m.map(x => html`<button class=${classMap({ on: x.on })} title=${x.name} @click=${toggleOne(x)}>${ico(null, memberIcon(x))}<small>${x.name}</small></button>`)}</div>`}
     ${lane}${track}${customActions(p, id, ids)}
   </div>`;
 }
